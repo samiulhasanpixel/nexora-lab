@@ -1,12 +1,9 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Mail, Phone, Lock, User, Eye, EyeOff } from "lucide-react";
+import { motion } from "framer-motion";
+import { ArrowLeft, User, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import StepIndicator from "@/components/StepIndicator";
-import { signUp, signIn, generateMockOTP } from "@/lib/auth";
+import { lovable } from "@/integrations/lovable/index";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -15,104 +12,72 @@ const AuthPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const isSeller = role === "seller";
-
-  const [isLogin, setIsLogin] = useState(false);
-  const [step, setStep] = useState(0);
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [mockOtp, setMockOtp] = useState("");
-
-  const [form, setForm] = useState({
-    fullName: "",
-    email: "",
-    phone: "",
-    password: "",
-    otp: "",
-    businessName: "",
-    category: "",
-    address: "",
-    description: "",
-  });
-
-  const steps = isLogin ? ["Login"] : ["Info", "OTP", "Done"];
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session) {
-        // Check role and redirect
-        supabase.from('user_roles').select('role').eq('user_id', session.user.id).single()
-          .then(({ data }) => {
-            if (data?.role === 'seller') navigate('/dashboard/seller');
-            else navigate('/dashboard/customer');
-          });
+        // Check if user has a role, if not assign one
+        const { data: existingRole } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', session.user.id)
+          .single();
+
+        if (!existingRole) {
+          const assignRole = isSeller ? 'seller' : 'customer';
+          await supabase.from('user_roles').insert({ user_id: session.user.id, role: assignRole as 'customer' | 'seller' });
+
+          // Create profile if needed
+          const { data: existingProfile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('user_id', session.user.id)
+            .single();
+
+          if (!existingProfile) {
+            await supabase.from('profiles').insert({
+              user_id: session.user.id,
+              full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || '',
+              phone: '',
+            });
+          }
+
+          if (isSeller) {
+            const { data: codeData } = await supabase.rpc('generate_seller_code');
+            await supabase.from('seller_profiles').insert({
+              user_id: session.user.id,
+              unique_code: codeData || `SLR-${Math.floor(100000 + Math.random() * 900000)}`,
+              business_name: session.user.user_metadata?.full_name || 'My Business',
+            });
+          }
+        }
+
+        // Redirect based on role
+        const { data: roleData } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', session.user.id)
+          .single();
+
+        if (roleData?.role === 'seller') navigate('/dashboard/seller');
+        else navigate('/dashboard/customer');
       }
     });
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, isSeller]);
 
-  const update = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
-
-  const handleSignUp = async () => {
+  const handleGoogleLogin = async () => {
     setLoading(true);
     try {
-      // Generate mock OTP
-      const otp = generateMockOTP();
-      setMockOtp(otp);
-      toast({
-        title: "OTP Sent (Mock)",
-        description: `Your verification code is: ${otp}`,
+      const { error } = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
       });
-      setStep(1);
+      if (error) {
+        toast({ title: "Login Failed", description: String(error), variant: "destructive" });
+      }
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOTP = async () => {
-    if (form.otp !== mockOtp) {
-      toast({ title: "Invalid OTP", description: "Please enter the correct code.", variant: "destructive" });
-      return;
-    }
-    setLoading(true);
-    try {
-      const roleType = isSeller ? 'seller' : 'customer';
-      const data = await signUp(form.email, form.password, form.fullName, form.phone, roleType as 'customer' | 'seller');
-      
-      // If seller, create seller profile
-      if (isSeller && data.user) {
-        const { data: codeData } = await supabase.rpc('generate_seller_code');
-        await supabase.from('seller_profiles').insert({
-          user_id: data.user.id,
-          unique_code: codeData || `SLR-${Math.floor(100000 + Math.random() * 900000)}`,
-          business_name: form.businessName,
-          category: form.category,
-          address: form.address,
-          description: form.description,
-        });
-      }
-
-      // Update phone verification
-      if (data.user) {
-        await supabase.from('profiles').update({ phone_verified: true }).eq('user_id', data.user.id);
-      }
-
-      setStep(2);
-      toast({ title: "Account Created!", description: "Please check your email to verify your account." });
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogin = async () => {
-    setLoading(true);
-    try {
-      await signIn(form.email, form.password);
-    } catch (err: any) {
-      toast({ title: "Login Failed", description: err.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -135,138 +100,29 @@ const AuthPage = () => {
 
         <div className="glass-elevated rounded-2xl p-8">
           <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${isSeller ? 'gradient-seller' : 'gradient-primary'}`}>
-            {isSeller ? <User className="w-6 h-6 text-primary-foreground" /> : <User className="w-6 h-6 text-primary-foreground" />}
+            {isSeller ? <Store className="w-6 h-6 text-primary-foreground" /> : <User className="w-6 h-6 text-primary-foreground" />}
           </div>
 
           <h2 className="text-2xl font-display font-bold text-foreground mb-1">
-            {isLogin ? "Welcome Back" : `${isSeller ? 'Seller' : 'Customer'} Sign Up`}
+            {isSeller ? 'Seller Login' : 'Customer Login'}
           </h2>
-          <p className="text-muted-foreground text-sm mb-6">
-            {isLogin ? "Sign in to your account" : "Create your account to get started"}
+          <p className="text-muted-foreground text-sm mb-8">
+            Sign in with your Google account to continue
           </p>
 
-          {!isLogin && <StepIndicator steps={steps} currentStep={step} variant={isSeller ? 'seller' : 'customer'} />}
-
-          <AnimatePresence mode="wait">
-            {isLogin ? (
-              <motion.div key="login" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
-                <div>
-                  <Label className="text-foreground">Email</Label>
-                  <div className="relative mt-1">
-                    <Mail className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-                    <Input className="pl-10" placeholder="your@email.com" value={form.email} onChange={e => update('email', e.target.value)} />
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-foreground">Password</Label>
-                  <div className="relative mt-1">
-                    <Lock className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-                    <Input className="pl-10 pr-10" type={showPassword ? "text" : "password"} placeholder="••••••••" value={form.password} onChange={e => update('password', e.target.value)} />
-                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-3 text-muted-foreground hover:text-foreground">
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-                <Button onClick={handleLogin} disabled={loading} className={`w-full border-0 text-primary-foreground ${isSeller ? 'gradient-seller' : 'gradient-primary'}`}>
-                  {loading ? "Signing in..." : "Sign In"}
-                </Button>
-              </motion.div>
-            ) : step === 0 ? (
-              <motion.div key="step0" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
-                <div>
-                  <Label className="text-foreground">Full Name</Label>
-                  <div className="relative mt-1">
-                    <User className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-                    <Input className="pl-10" placeholder="John Doe" value={form.fullName} onChange={e => update('fullName', e.target.value)} />
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-foreground">Email</Label>
-                  <div className="relative mt-1">
-                    <Mail className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-                    <Input className="pl-10" placeholder="your@email.com" value={form.email} onChange={e => update('email', e.target.value)} />
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-foreground">Phone Number</Label>
-                  <div className="relative mt-1">
-                    <Phone className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-                    <Input className="pl-10" placeholder="+880 1XXX-XXXXXX" value={form.phone} onChange={e => update('phone', e.target.value)} />
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-foreground">Password</Label>
-                  <div className="relative mt-1">
-                    <Lock className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-                    <Input className="pl-10 pr-10" type={showPassword ? "text" : "password"} placeholder="Min 6 characters" value={form.password} onChange={e => update('password', e.target.value)} />
-                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-3 text-muted-foreground hover:text-foreground">
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-                {isSeller && (
-                  <>
-                    <div>
-                      <Label className="text-foreground">Business Name</Label>
-                      <Input placeholder="Your Business" value={form.businessName} onChange={e => update('businessName', e.target.value)} />
-                    </div>
-                    <div>
-                      <Label className="text-foreground">Category</Label>
-                      <Input placeholder="e.g. Salon, Clinic, Restaurant" value={form.category} onChange={e => update('category', e.target.value)} />
-                    </div>
-                    <div>
-                      <Label className="text-foreground">Address</Label>
-                      <Input placeholder="Your business address" value={form.address} onChange={e => update('address', e.target.value)} />
-                    </div>
-                  </>
-                )}
-                <Button onClick={handleSignUp} disabled={loading || !form.fullName || !form.email || !form.phone || !form.password} className={`w-full border-0 text-primary-foreground ${isSeller ? 'gradient-seller' : 'gradient-primary'}`}>
-                  {loading ? "Sending OTP..." : "Send OTP"}
-                </Button>
-              </motion.div>
-            ) : step === 1 ? (
-              <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
-                <div className="text-center mb-4">
-                  <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3 ${isSeller ? 'gradient-seller' : 'gradient-primary'}`}>
-                    <Phone className="w-8 h-8 text-primary-foreground" />
-                  </div>
-                  <p className="text-sm text-muted-foreground">Enter the 4-digit code sent to</p>
-                  <p className="font-semibold text-foreground">{form.phone}</p>
-                </div>
-                <div>
-                  <Label className="text-foreground">OTP Code</Label>
-                  <Input className="text-center text-2xl tracking-[0.5em] font-display" maxLength={4} placeholder="• • • •" value={form.otp} onChange={e => update('otp', e.target.value.replace(/\D/g, ''))} />
-                </div>
-                <div className="p-3 rounded-lg bg-accent/10 border border-accent/20 text-sm text-accent">
-                  <strong>Dev Mode:</strong> OTP is <span className="font-mono font-bold">{mockOtp}</span>
-                </div>
-                <Button onClick={handleVerifyOTP} disabled={loading || form.otp.length !== 4} className={`w-full border-0 text-primary-foreground ${isSeller ? 'gradient-seller' : 'gradient-primary'}`}>
-                  {loading ? "Verifying..." : "Verify & Create Account"}
-                </Button>
-              </motion.div>
-            ) : (
-              <motion.div key="step2" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center py-6">
-                <div className="w-20 h-20 rounded-full gradient-primary flex items-center justify-center mx-auto mb-4">
-                  <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: "spring" }}>
-                    <svg className="w-10 h-10 text-primary-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </motion.div>
-                </div>
-                <h3 className="text-xl font-display font-bold text-foreground mb-2">Account Created!</h3>
-                <p className="text-muted-foreground text-sm mb-6">Please check your email to verify your account, then sign in.</p>
-                <Button onClick={() => setIsLogin(true)} className={`w-full border-0 text-primary-foreground ${isSeller ? 'gradient-seller' : 'gradient-primary'}`}>
-                  Go to Sign In
-                </Button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <div className="mt-6 text-center">
-            <button onClick={() => { setIsLogin(!isLogin); setStep(0); }} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
-            </button>
-          </div>
+          <Button
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            className={`w-full border-0 text-primary-foreground gap-3 text-base py-6 ${isSeller ? 'gradient-seller' : 'gradient-primary'}`}
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
+              <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+              <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+              <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+            </svg>
+            {loading ? "Connecting..." : "Continue with Google"}
+          </Button>
         </div>
       </motion.div>
     </div>

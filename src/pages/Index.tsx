@@ -100,7 +100,7 @@ const Index = () => {
             className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto"
           >
             {[
-              { icon: Shield, title: "OTP Verified", desc: "Phone number verification for secure access" },
+              { icon: Shield, title: "Google Verified", desc: "Secure Google authentication for access" },
               { icon: Zap, title: "Real-time Queue", desc: "Live updates on your position and status" },
               { icon: Clock, title: "Smart Booking", desc: "Book services with unique seller codes" },
             ].map((feat, i) => (
