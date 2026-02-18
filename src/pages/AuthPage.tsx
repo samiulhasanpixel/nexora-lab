@@ -26,9 +26,11 @@ const AuthPage = () => {
           .eq('user_id', session.user.id)
           .single();
 
+        const desiredRole = isSeller ? 'seller' : 'customer';
+
         if (!existingRole) {
-          const assignRole = isSeller ? 'seller' : 'customer';
-          await supabase.from('user_roles').insert({ user_id: session.user.id, role: assignRole as 'customer' | 'seller' });
+          // No role exists, create one
+          await supabase.from('user_roles').insert({ user_id: session.user.id, role: desiredRole as 'customer' | 'seller' });
 
           // Create profile if needed
           const { data: existingProfile } = await supabase
@@ -53,16 +55,32 @@ const AuthPage = () => {
               business_name: session.user.user_metadata?.full_name || 'My Business',
             });
           }
+        } else if (existingRole.role !== desiredRole) {
+          // Role exists but doesn't match the login path, update it
+          await supabase.from('user_roles').update({ role: desiredRole as 'customer' | 'seller' })
+            .eq('user_id', session.user.id);
+
+          // If switching to seller and no seller profile exists, create one
+          if (desiredRole === 'seller') {
+            const { data: sellerProfile } = await supabase
+              .from('seller_profiles')
+              .select('id')
+              .eq('user_id', session.user.id)
+              .single();
+            
+            if (!sellerProfile) {
+              const { data: codeData } = await supabase.rpc('generate_seller_code');
+              await supabase.from('seller_profiles').insert({
+                user_id: session.user.id,
+                unique_code: codeData || `SLR-${Math.floor(100000 + Math.random() * 900000)}`,
+                business_name: session.user.user_metadata?.full_name || 'My Business',
+              });
+            }
+          }
         }
 
-        // Redirect based on role
-        const { data: roleData } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', session.user.id)
-          .single();
-
-        if (roleData?.role === 'seller') navigate('/dashboard/seller');
+        // Redirect based on desired role (the one they chose to login as)
+        if (desiredRole === 'seller') navigate('/dashboard/seller');
         else navigate('/dashboard/customer');
       } catch (err) {
         console.error('Auth flow error:', err);
