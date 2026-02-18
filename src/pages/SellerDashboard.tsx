@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { LogOut, Users, Copy, Check, ChevronRight, Hash, User } from "lucide-react";
+import { LogOut, Users, Copy, Check, ChevronRight, Hash, User, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { signOut } from "@/lib/auth";
@@ -85,9 +85,14 @@ const SellerDashboard = () => {
               <p className="text-xs text-muted-foreground">{profile?.full_name}</p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2 text-muted-foreground">
-            <LogOut className="w-4 h-4" /> Logout
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard/seller/edit')} className="gap-2 text-muted-foreground">
+              <Pencil className="w-4 h-4" /> Edit Profile
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2 text-muted-foreground">
+              <LogOut className="w-4 h-4" /> Logout
+            </Button>
+          </div>
         </div>
       </header>
 
