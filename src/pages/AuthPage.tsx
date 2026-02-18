@@ -15,8 +15,10 @@ const AuthPage = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session) {
+    const handleSession = async (session: any) => {
+      if (!session) return;
+      
+      try {
         // Check if user has a role, if not assign one
         const { data: existingRole } = await supabase
           .from('user_roles')
@@ -62,6 +64,19 @@ const AuthPage = () => {
 
         if (roleData?.role === 'seller') navigate('/dashboard/seller');
         else navigate('/dashboard/customer');
+      } catch (err) {
+        console.error('Auth flow error:', err);
+      }
+    };
+
+    // Check existing session immediately on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      handleSession(session);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
+        handleSession(session);
       }
     });
     return () => subscription.unsubscribe();
