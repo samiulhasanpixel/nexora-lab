@@ -1,10 +1,28 @@
+import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { Users, Store, ArrowRight, Shield, Zap, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const { data: roleData } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', session.user.id)
+          .single();
+        if (roleData?.role === 'seller') navigate('/dashboard/seller');
+        else if (roleData?.role === 'customer') navigate('/dashboard/customer');
+      }
+    };
+    checkAuth();
+  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-background overflow-hidden relative">

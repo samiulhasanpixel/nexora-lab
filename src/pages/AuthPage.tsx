@@ -71,14 +71,14 @@ const AuthPage = () => {
     setLoading(true);
     try {
       const { error } = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
+        redirect_uri: `${window.location.origin}/auth/${role}`,
       });
       if (error) {
         toast({ title: "Login Failed", description: String(error), variant: "destructive" });
+        setLoading(false);
       }
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
-    } finally {
       setLoading(false);
     }
   };
