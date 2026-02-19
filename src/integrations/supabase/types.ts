@@ -77,12 +77,15 @@ export type Database = {
       seller_profiles: {
         Row: {
           address: string | null
+          booking_end_time: string | null
+          booking_start_time: string | null
           business_name: string
           category: string | null
           created_at: string
           description: string | null
           id: string
           is_active: boolean | null
+          max_bookings: number | null
           rating: number | null
           total_reviews: number | null
           unique_code: string
@@ -91,12 +94,15 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          booking_end_time?: string | null
+          booking_start_time?: string | null
           business_name?: string
           category?: string | null
           created_at?: string
           description?: string | null
           id?: string
           is_active?: boolean | null
+          max_bookings?: number | null
           rating?: number | null
           total_reviews?: number | null
           unique_code: string
@@ -105,12 +111,15 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          booking_end_time?: string | null
+          booking_start_time?: string | null
           business_name?: string
           category?: string | null
           created_at?: string
           description?: string | null
           id?: string
           is_active?: boolean | null
+          max_bookings?: number | null
           rating?: number | null
           total_reviews?: number | null
           unique_code?: string

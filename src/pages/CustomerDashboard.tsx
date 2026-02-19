@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { Search, Clock, LogOut, User, Hash, Star } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Search, Clock, LogOut, User, Hash, Star, Users, CheckCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,8 +14,10 @@ const CustomerDashboard = () => {
   const [searchCode, setSearchCode] = useState("");
   const [sellers, setSellers] = useState<any[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
+  const [sellerMap, setSellerMap] = useState<Record<string, any>>({});
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [queueStats, setQueueStats] = useState<Record<string, { completed: number; waiting: number; in_progress: number; currentSerial: number }>>({});
 
   useEffect(() => {
     const loadData = async () => {
@@ -30,10 +32,29 @@ const CustomerDashboard = () => {
 
       const { data: sellerData } = await supabase.from('seller_profiles').select('*').eq('is_active', true);
       setSellers(sellerData || []);
+
+      // Build seller map for showing seller name in bookings
+      const map: Record<string, any> = {};
+      (sellerData || []).forEach(s => { map[s.user_id] = s; });
+      setSellerMap(map);
+
+      // Fetch queue stats for each seller the customer has bookings with
+      const sellerIds = [...new Set((bookingData || []).map(b => b.seller_id))];
+      const statsMap: Record<string, any> = {};
+      for (const sid of sellerIds) {
+        const { data: allBookings } = await supabase.from('service_bookings')
+          .select('status, token_number')
+          .eq('seller_id', sid);
+        const completed = (allBookings || []).filter(b => b.status === 'completed').length;
+        const waiting = (allBookings || []).filter(b => b.status === 'waiting').length;
+        const in_progress = (allBookings || []).filter(b => b.status === 'in_progress').length;
+        const currentSerial = (allBookings || []).filter(b => b.status === 'in_progress')[0]?.token_number || 0;
+        statsMap[sid] = { completed, waiting, in_progress, currentSerial };
+      }
+      setQueueStats(statsMap);
     };
     loadData();
 
-    // Realtime subscription for booking updates
     const channel = supabase.channel('bookings-updates')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'service_bookings' }, () => {
         loadData();
@@ -49,7 +70,46 @@ const CustomerDashboard = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Get next token number for this seller
+      // Check duplicate booking within 12 hours for same seller
+      const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+      const { data: recentBookings } = await supabase.from('service_bookings')
+        .select('id')
+        .eq('customer_id', user.id)
+        .eq('seller_id', seller.user_id)
+        .gte('created_at', twelveHoursAgo)
+        .in('status', ['waiting', 'in_progress']);
+
+      if (recentBookings && recentBookings.length > 0) {
+        toast({ title: "Already Booked!", description: "আপনি ইতোমধ্যে এই সেলারে বুক করেছেন। ১২ ঘণ্টার মধ্যে আবার বুক করা যাবে না।", variant: "destructive" });
+        setLoading(false);
+        return;
+      }
+
+      // Check seller time window
+      if (seller.booking_start_time && seller.booking_end_time) {
+        const now = new Date();
+        const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:00`;
+        if (currentTime < seller.booking_start_time || currentTime > seller.booking_end_time) {
+          toast({ title: "Time's Up!", description: `বুকিং শুধুমাত্র ${seller.booking_start_time.slice(0, 5)} - ${seller.booking_end_time.slice(0, 5)} এর মধ্যে সম্ভব।`, variant: "destructive" });
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Check max bookings (seat limit)
+      if (seller.max_bookings) {
+        const { data: activeBookings } = await supabase.from('service_bookings')
+          .select('id')
+          .eq('seller_id', seller.user_id)
+          .in('status', ['waiting', 'in_progress']);
+        if (activeBookings && activeBookings.length >= seller.max_bookings) {
+          toast({ title: "Seat Full!", description: `সিট শেষ! সর্বোচ্চ ${seller.max_bookings} জন বুক করতে পারে।`, variant: "destructive" });
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Get next token number
       const { data: existing } = await supabase.from('service_bookings')
         .select('token_number')
         .eq('seller_id', seller.user_id)
@@ -91,6 +151,13 @@ const CustomerDashboard = () => {
     cancelled: 'bg-destructive/15 text-destructive',
   };
 
+  const statusLabels: Record<string, string> = {
+    waiting: 'Waiting',
+    in_progress: 'In Progress',
+    completed: 'Completed',
+    cancelled: 'Cancelled',
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -112,35 +179,61 @@ const CustomerDashboard = () => {
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-8 space-y-8">
-        {/* My Bookings */}
+        {/* My Bookings with detailed queue info */}
         {bookings.length > 0 && (
           <section>
             <h2 className="font-display font-bold text-lg text-foreground mb-4 flex items-center gap-2">
               <Clock className="w-5 h-5 text-primary" /> My Queue
             </h2>
             <div className="grid gap-3">
-              {bookings.map((b, i) => (
-                <motion.div
-                  key={b.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                  className="glass-card rounded-xl p-4 flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center">
-                      <Hash className="w-6 h-6 text-primary-foreground" />
+              {bookings.map((b, i) => {
+                const stats = queueStats[b.seller_id];
+                const sellerInfo = sellerMap[b.seller_id];
+                return (
+                  <motion.div
+                    key={b.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                    className="glass-card rounded-xl p-4"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center">
+                          <Hash className="w-6 h-6 text-primary-foreground" />
+                        </div>
+                        <div>
+                          <p className="font-display font-semibold text-foreground">Token #{b.token_number}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {sellerInfo?.business_name || 'Unknown Seller'} • {sellerInfo?.unique_code}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{new Date(b.created_at).toLocaleString()}</p>
+                        </div>
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusColors[b.status] || ''}`}>
+                        {statusLabels[b.status] || b.status}
+                      </span>
                     </div>
-                    <div>
-                      <p className="font-display font-semibold text-foreground">Token #{b.token_number}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(b.created_at).toLocaleDateString()}</p>
-                    </div>
-                  </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusColors[b.status] || ''}`}>
-                    {b.status}
-                  </span>
-                </motion.div>
-              ))}
+                    {/* Queue stats */}
+                    {stats && b.status !== 'completed' && b.status !== 'cancelled' && (
+                      <div className="grid grid-cols-3 gap-2 mt-2 pt-3 border-t border-border/50">
+                        <div className="text-center">
+                          <p className="text-sm font-bold text-primary">{stats.currentSerial || '-'}</p>
+                          <p className="text-[10px] text-muted-foreground">Current Serial</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm font-bold text-accent">{stats.waiting}</p>
+                          <p className="text-[10px] text-muted-foreground">Waiting</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm font-bold text-green-600">{stats.completed}</p>
+                          <p className="text-[10px] text-muted-foreground">Completed</p>
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                );
+              })}
             </div>
           </section>
         )}
@@ -178,7 +271,20 @@ const CustomerDashboard = () => {
                     {seller.category}
                   </span>
                 )}
-                {seller.description && <p className="text-sm text-muted-foreground mb-4">{seller.description}</p>}
+                {seller.description && <p className="text-sm text-muted-foreground mb-2">{seller.description}</p>}
+                {/* Time & seat info */}
+                <div className="flex flex-wrap gap-2 mb-3 text-[11px] text-muted-foreground">
+                  {seller.booking_start_time && seller.booking_end_time && (
+                    <span className="bg-muted px-2 py-0.5 rounded-full">
+                      🕐 {seller.booking_start_time.slice(0, 5)} - {seller.booking_end_time.slice(0, 5)}
+                    </span>
+                  )}
+                  {seller.max_bookings && (
+                    <span className="bg-muted px-2 py-0.5 rounded-full">
+                      💺 Max {seller.max_bookings} seats
+                    </span>
+                  )}
+                </div>
                 <Button onClick={() => handleBook(seller)} disabled={loading} className="w-full gradient-primary text-primary-foreground border-0 hover:opacity-90" size="sm">
                   Book Service
                 </Button>
