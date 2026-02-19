@@ -1,11 +1,23 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { LogOut, Users, Copy, Check, ChevronRight, Hash, User, Pencil } from "lucide-react";
+import { LogOut, Users, Copy, Check, ChevronRight, Hash, User, Pencil, Settings, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { signOut } from "@/lib/auth";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const SellerDashboard = () => {
   const navigate = useNavigate();
@@ -14,6 +26,7 @@ const SellerDashboard = () => {
   const [sellerProfile, setSellerProfile] = useState<any>(null);
   const [bookings, setBookings] = useState<any[]>([]);
   const [copied, setCopied] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   const loadData = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -45,6 +58,26 @@ const SellerDashboard = () => {
     const { error } = await supabase.from('service_bookings').update({ status }).eq('id', id);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
     else toast({ title: "Updated", description: `Booking marked as ${status}` });
+  };
+
+  const clearAllQueue = async () => {
+    setClearing(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error } = await supabase.from('service_bookings')
+        .delete()
+        .eq('seller_id', user.id);
+
+      if (error) throw error;
+      toast({ title: "Cleared!", description: "সব কুপন ও history মুছে ফেলা হয়েছে।" });
+      setBookings([]);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setClearing(false);
+    }
   };
 
   const copyCode = () => {
@@ -86,11 +119,14 @@ const SellerDashboard = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard/seller/settings')} className="gap-2 text-muted-foreground">
+              <Settings className="w-4 h-4" />
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard/seller/edit')} className="gap-2 text-muted-foreground">
-              <Pencil className="w-4 h-4" /> Edit Profile
+              <Pencil className="w-4 h-4" />
             </Button>
             <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2 text-muted-foreground">
-              <LogOut className="w-4 h-4" /> Logout
+              <LogOut className="w-4 h-4" />
             </Button>
           </div>
         </div>
@@ -134,6 +170,38 @@ const SellerDashboard = () => {
               <p className="text-xs text-muted-foreground">{stat.label}</p>
             </motion.div>
           ))}
+        </div>
+
+        {/* Clear Queue */}
+        <div className="glass-card rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Trash2 className="w-5 h-5 text-destructive" />
+            <div>
+              <p className="font-display font-semibold text-foreground text-sm">Clear All Queue & History</p>
+              <p className="text-xs text-muted-foreground">সব কুপন ও history ডিলিট হয়ে যাবে</p>
+            </div>
+          </div>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm" disabled={clearing || bookings.length === 0}>
+                {clearing ? "Clearing..." : "Clear All"}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>আপনি কি নিশ্চিত?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  এটি সব কুপন এবং booking history permanently ডিলিট করবে। এটি আর undo করা যাবে না।
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={clearAllQueue} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  Delete All
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
 
         {/* Queue */}
