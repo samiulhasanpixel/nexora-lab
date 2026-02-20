@@ -82,10 +82,13 @@ export type Database = {
           business_name: string
           category: string | null
           created_at: string
+          customer_message: string | null
           description: string | null
           id: string
           is_active: boolean | null
           max_bookings: number | null
+          off_dates: string[] | null
+          off_days: number[] | null
           rating: number | null
           total_reviews: number | null
           unique_code: string
@@ -99,10 +102,13 @@ export type Database = {
           business_name?: string
           category?: string | null
           created_at?: string
+          customer_message?: string | null
           description?: string | null
           id?: string
           is_active?: boolean | null
           max_bookings?: number | null
+          off_dates?: string[] | null
+          off_days?: number[] | null
           rating?: number | null
           total_reviews?: number | null
           unique_code: string
@@ -116,10 +122,13 @@ export type Database = {
           business_name?: string
           category?: string | null
           created_at?: string
+          customer_message?: string | null
           description?: string | null
           id?: string
           is_active?: boolean | null
           max_bookings?: number | null
+          off_dates?: string[] | null
+          off_days?: number[] | null
           rating?: number | null
           total_reviews?: number | null
           unique_code?: string

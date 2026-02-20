@@ -9,6 +9,7 @@ import CustomerDashboard from "./pages/CustomerDashboard";
 import SellerDashboard from "./pages/SellerDashboard";
 import SellerProfileEdit from "./pages/SellerProfileEdit";
 import SellerSettings from "./pages/SellerSettings";
+import QueueDetailPage from "./pages/QueueDetailPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/dashboard/seller" element={<SellerDashboard />} />
           <Route path="/dashboard/seller/edit" element={<SellerProfileEdit />} />
           <Route path="/dashboard/seller/settings" element={<SellerSettings />} />
+          <Route path="/queue/:bookingId" element={<QueueDetailPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
