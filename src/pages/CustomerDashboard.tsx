@@ -1,12 +1,23 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Clock, LogOut, User, Hash, Star, Users, CheckCircle, Loader2 } from "lucide-react";
+import { Search, Clock, LogOut, User, Hash, Star, Users, CheckCircle, Loader2, ChevronRight, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { signOut } from "@/lib/auth";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const CustomerDashboard = () => {
   const navigate = useNavigate();
@@ -17,6 +28,7 @@ const CustomerDashboard = () => {
   const [sellerMap, setSellerMap] = useState<Record<string, any>>({});
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [queueStats, setQueueStats] = useState<Record<string, { completed: number; waiting: number; in_progress: number; currentSerial: number }>>({});
 
   useEffect(() => {
@@ -85,6 +97,25 @@ const CustomerDashboard = () => {
         return;
       }
 
+      // Check off-days (weekly)
+      const today = new Date();
+      const dayOfWeek = today.getDay();
+      const sellerOffDays = (seller.off_days as number[]) || [];
+      if (sellerOffDays.includes(dayOfWeek)) {
+        toast({ title: "Closed Today!", description: "আজ এই সেলারের বুকিং বন্ধ আছে।", variant: "destructive" });
+        setLoading(false);
+        return;
+      }
+
+      // Check off-dates (specific dates)
+      const todayStr = today.toISOString().split('T')[0];
+      const sellerOffDates = (seller.off_dates as string[]) || [];
+      if (sellerOffDates.includes(todayStr)) {
+        toast({ title: "Closed Today!", description: "আজ এই সেলারের বুকিং বন্ধ আছে।", variant: "destructive" });
+        setLoading(false);
+        return;
+      }
+
       // Check seller time window
       if (seller.booking_start_time && seller.booking_end_time) {
         const now = new Date();
@@ -144,6 +175,22 @@ const CustomerDashboard = () => {
     navigate('/');
   };
 
+  const clearAllBookings = async () => {
+    setClearing(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { error } = await supabase.from('service_bookings').delete().eq('customer_id', user.id);
+      if (error) throw error;
+      toast({ title: "Cleared!", description: "সব কুপন মুছে ফেলা হয়েছে।" });
+      setBookings([]);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setClearing(false);
+    }
+  };
+
   const statusColors: Record<string, string> = {
     waiting: 'bg-accent/15 text-accent',
     in_progress: 'bg-primary/15 text-primary',
@@ -181,6 +228,7 @@ const CustomerDashboard = () => {
       <main className="max-w-5xl mx-auto px-6 py-8 space-y-8">
         {/* My Bookings with detailed queue info */}
         {bookings.length > 0 && (
+          <>
           <section>
             <h2 className="font-display font-bold text-lg text-foreground mb-4 flex items-center gap-2">
               <Clock className="w-5 h-5 text-primary" /> My Queue
@@ -195,7 +243,8 @@ const CustomerDashboard = () => {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.05 }}
-                    className="glass-card rounded-xl p-4"
+                    className="glass-card rounded-xl p-4 cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all"
+                    onClick={() => navigate(`/queue/${b.id}`)}
                   >
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-4">
@@ -210,9 +259,12 @@ const CustomerDashboard = () => {
                           <p className="text-xs text-muted-foreground">{new Date(b.created_at).toLocaleString()}</p>
                         </div>
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusColors[b.status] || ''}`}>
-                        {statusLabels[b.status] || b.status}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusColors[b.status] || ''}`}>
+                          {statusLabels[b.status] || b.status}
+                        </span>
+                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                      </div>
                     </div>
                     {/* Queue stats */}
                     {stats && b.status !== 'completed' && b.status !== 'cancelled' && (
@@ -236,6 +288,39 @@ const CustomerDashboard = () => {
               })}
             </div>
           </section>
+
+          {/* Clear all bookings */}
+          <div className="glass-card rounded-xl p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Trash2 className="w-5 h-5 text-destructive" />
+              <div>
+                <p className="font-display font-semibold text-foreground text-sm">Clear All My Coupons</p>
+                <p className="text-xs text-muted-foreground">সব কুপন ডিলিট হয়ে যাবে</p>
+              </div>
+            </div>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" disabled={clearing || bookings.length === 0}>
+                  {clearing ? "Clearing..." : "Clear All"}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>আপনি কি নিশ্চিত?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    এটি আপনার সব কুপন permanently ডিলিট করবে। এটি আর undo করা যাবে না।
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={clearAllBookings} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Delete All
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+          </>
         )}
 
         {/* Search & Book */}
