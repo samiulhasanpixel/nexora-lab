@@ -89,7 +89,10 @@ export type Database = {
           max_bookings: number | null
           off_dates: string[] | null
           off_days: number[] | null
+          profile_image_url: string | null
           rating: number | null
+          template_data: Json | null
+          theme: string | null
           total_reviews: number | null
           unique_code: string
           updated_at: string
@@ -109,7 +112,10 @@ export type Database = {
           max_bookings?: number | null
           off_dates?: string[] | null
           off_days?: number[] | null
+          profile_image_url?: string | null
           rating?: number | null
+          template_data?: Json | null
+          theme?: string | null
           total_reviews?: number | null
           unique_code: string
           updated_at?: string
@@ -129,7 +135,10 @@ export type Database = {
           max_bookings?: number | null
           off_dates?: string[] | null
           off_days?: number[] | null
+          profile_image_url?: string | null
           rating?: number | null
+          template_data?: Json | null
+          theme?: string | null
           total_reviews?: number | null
           unique_code?: string
           updated_at?: string
