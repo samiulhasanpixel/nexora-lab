@@ -198,6 +198,7 @@ export type Database = {
         Returns: Json
       }
       generate_seller_code: { Args: never; Returns: string }
+      get_queue_data: { Args: { p_seller_id: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
