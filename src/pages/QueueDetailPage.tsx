@@ -18,7 +18,7 @@ const QueueDetailPage = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { navigate('/'); return; }
 
-    // Get this booking
+    // Get this booking (own booking via RLS)
     const { data: bookingData } = await supabase.from('service_bookings')
       .select('*').eq('id', bookingId).single();
     if (!bookingData) { navigate('/dashboard/customer'); return; }
@@ -29,20 +29,17 @@ const QueueDetailPage = () => {
       .select('*').eq('user_id', bookingData.seller_id).single();
     setSeller(sellerData);
 
-    // Get all bookings for this seller
-    const { data: allData } = await supabase.from('service_bookings')
-      .select('*').eq('seller_id', bookingData.seller_id)
-      .order('token_number', { ascending: true });
-    setAllBookings(allData || []);
+    // Get ALL bookings for this seller using security definer function (bypasses RLS)
+    const { data: queueData } = await supabase.rpc('get_queue_data', {
+      p_seller_id: bookingData.seller_id,
+    });
 
-    // Get customer names via profiles
-    const customerIds = [...new Set((allData || []).map(b => b.customer_id))];
-    const { data: profiles } = await supabase.from('profiles')
-      .select('user_id, full_name')
-      .in('user_id', customerIds);
-    
+    const allData = (queueData as any[] || []);
+    setAllBookings(allData);
+
+    // Build name map from returned data
     const nameMap: Record<string, string> = {};
-    (profiles || []).forEach(p => { nameMap[p.user_id] = p.full_name; });
+    allData.forEach((b: any) => { nameMap[b.customer_id] = b.customer_name; });
     setCustomerNames(nameMap);
     setLoading(false);
   };
@@ -65,9 +62,9 @@ const QueueDetailPage = () => {
     );
   }
 
-  const waiting = allBookings.filter(b => b.status === 'waiting');
-  const inProgress = allBookings.filter(b => b.status === 'in_progress');
-  const completed = allBookings.filter(b => b.status === 'completed');
+  const waiting = allBookings.filter((b: any) => b.status === 'waiting');
+  const inProgress = allBookings.filter((b: any) => b.status === 'in_progress');
+  const completed = allBookings.filter((b: any) => b.status === 'completed');
   const currentSerial = inProgress[0]?.token_number || 0;
   const myPosition = waiting.findIndex(b => b.id === booking?.id);
 
