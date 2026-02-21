@@ -193,6 +193,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_booking: {
+        Args: { p_customer_id: string; p_seller_id: string }
+        Returns: Json
+      }
       generate_seller_code: { Args: never; Returns: string }
       has_role: {
         Args: {

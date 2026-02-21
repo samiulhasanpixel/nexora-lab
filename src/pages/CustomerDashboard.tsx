@@ -127,37 +127,25 @@ const CustomerDashboard = () => {
         }
       }
 
-      // Check max bookings (seat limit)
-      if (seller.max_bookings) {
-        const { data: activeBookings } = await supabase.from('service_bookings')
-          .select('id')
-          .eq('seller_id', seller.user_id)
-          .in('status', ['waiting', 'in_progress']);
-        if (activeBookings && activeBookings.length >= seller.max_bookings) {
-          toast({ title: "Seat Full!", description: `সিট শেষ! সর্বোচ্চ ${seller.max_bookings} জন বুক করতে পারে।`, variant: "destructive" });
-          setLoading(false);
-          return;
-        }
-      }
-
-      // Get next token number
-      const { data: existing } = await supabase.from('service_bookings')
-        .select('token_number')
-        .eq('seller_id', seller.user_id)
-        .eq('status', 'waiting')
-        .order('token_number', { ascending: false })
-        .limit(1);
-
-      const nextToken = (existing && existing.length > 0 ? existing[0].token_number : 0) + 1;
-
-      const { error } = await supabase.from('service_bookings').insert({
-        customer_id: user.id,
-        seller_id: seller.user_id,
-        token_number: nextToken,
+      // Use server-side function for atomic seat check + token assignment
+      const { data: result, error } = await supabase.rpc('create_booking', {
+        p_customer_id: user.id,
+        p_seller_id: seller.user_id,
       });
 
       if (error) throw error;
-      toast({ title: "Booked!", description: `Your token number is #${nextToken}` });
+
+      const res = result as any;
+      if (!res.success) {
+        if (res.error === 'seat_full') {
+          toast({ title: "Seat Full!", description: `সিট শেষ! সর্বোচ্চ ${res.max} জন বুক করতে পারে।`, variant: "destructive" });
+          setLoading(false);
+          return;
+        }
+        throw new Error(res.error);
+      }
+
+      toast({ title: "Booked!", description: `Your token number is #${res.token_number}` });
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
