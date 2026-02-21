@@ -358,8 +358,8 @@ const CustomerDashboard = () => {
                     </span>
                   )}
                 </div>
-                <Button onClick={() => handleBook(seller)} disabled={loading} className="w-full gradient-primary text-primary-foreground border-0 hover:opacity-90" size="sm">
-                  Book Service
+                <Button onClick={() => navigate(`/seller/${seller.user_id}`)} className="w-full gradient-primary text-primary-foreground border-0 hover:opacity-90" size="sm">
+                  View Details
                 </Button>
               </motion.div>
             ))}
