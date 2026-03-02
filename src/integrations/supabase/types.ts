@@ -202,6 +202,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_get_all_bookings: { Args: never; Returns: Json }
+      admin_get_all_sellers: { Args: never; Returns: Json }
+      admin_get_all_users: { Args: never; Returns: Json }
+      admin_get_stats: { Args: never; Returns: Json }
+      admin_toggle_seller_active: {
+        Args: { p_active: boolean; p_seller_user_id: string }
+        Returns: undefined
+      }
       create_booking: {
         Args: { p_customer_id: string; p_seller_id: string }
         Returns: Json
