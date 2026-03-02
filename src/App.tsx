@@ -12,6 +12,8 @@ import SellerSettings from "./pages/SellerSettings";
 import QueueDetailPage from "./pages/QueueDetailPage";
 import SellerPublicProfile from "./pages/SellerPublicProfile";
 import NotFound from "./pages/NotFound";
+import AdminLogin from "./pages/AdminLogin";
+import AdminDashboard from "./pages/AdminDashboard";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +32,8 @@ const App = () => (
           <Route path="/dashboard/seller/settings" element={<SellerSettings />} />
           <Route path="/seller/:sellerId" element={<SellerPublicProfile />} />
           <Route path="/queue/:bookingId" element={<QueueDetailPage />} />
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

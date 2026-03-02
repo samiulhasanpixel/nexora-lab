@@ -43,7 +43,19 @@ const Index = () => {
             <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
               <Zap className="w-5 h-5 text-primary-foreground" />
             </div>
-            <h1 className="text-xl font-display font-bold text-foreground">QueuePro</h1>
+            <h1
+              className="text-xl font-display font-bold text-foreground cursor-default select-none"
+              onClick={() => {
+                let clicks = (window as any).__qpAdminClicks || 0;
+                clicks++;
+                (window as any).__qpAdminClicks = clicks;
+                if (clicks >= 5) {
+                  (window as any).__qpAdminClicks = 0;
+                  navigate('/admin/login');
+                }
+                setTimeout(() => { (window as any).__qpAdminClicks = 0; }, 2000);
+              }}
+            >QueuePro</h1>
           </motion.div>
         </div>
       </header>
