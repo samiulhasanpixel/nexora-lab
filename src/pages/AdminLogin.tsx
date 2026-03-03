@@ -33,6 +33,29 @@ const AdminLogin = () => {
             navigate('/admin/dashboard');
             return;
           }
+
+          // Auto-assign admin role if logged in with admin email
+          await supabase
+            .from('user_roles')
+            .upsert({ user_id: session.user.id, role: 'admin' as any });
+
+          // Ensure profile exists
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+
+          if (!profile) {
+            await supabase.from('profiles').insert({
+              user_id: session.user.id,
+              full_name: session.user.user_metadata?.full_name || 'Admin',
+              phone: '',
+            });
+          }
+
+          navigate('/admin/dashboard');
+          return;
         }
       }
       setChecking(false);
