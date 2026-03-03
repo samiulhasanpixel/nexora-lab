@@ -15,90 +15,50 @@ const AdminLogin = () => {
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
 
+  const ensureAdminAndRedirect = async (session: any) => {
+    if (!session) return false;
+
+    const email = session.user.email;
+    if (email !== ADMIN_EMAIL) return false;
+
+    await supabase
+      .from('user_roles')
+      .upsert({ user_id: session.user.id, role: 'admin' as any }, { onConflict: 'user_id,role' });
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('user_id', session.user.id)
+      .maybeSingle();
+
+    if (!profile) {
+      await supabase.from('profiles').insert({
+        user_id: session.user.id,
+        full_name: session.user.user_metadata?.full_name || 'Admin',
+        phone: '',
+      });
+    }
+
+    navigate('/admin/dashboard');
+    return true;
+  };
+
   useEffect(() => {
     const checkAdmin = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        const email = session.user.email;
-        if (email === ADMIN_EMAIL) {
-          // Check if admin role exists
-          const { data: roleData } = await supabase
-            .from('user_roles')
-            .select('role')
-            .eq('user_id', session.user.id)
-            .eq('role', 'admin')
-            .maybeSingle();
-
-          if (roleData) {
-            navigate('/admin/dashboard');
-            return;
-          }
-
-          // Auto-assign admin role if logged in with admin email
-          await supabase
-            .from('user_roles')
-            .upsert({ user_id: session.user.id, role: 'admin' as any });
-
-          // Ensure profile exists
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('user_id', session.user.id)
-            .maybeSingle();
-
-          if (!profile) {
-            await supabase.from('profiles').insert({
-              user_id: session.user.id,
-              full_name: session.user.user_metadata?.full_name || 'Admin',
-              phone: '',
-            });
-          }
-
-          navigate('/admin/dashboard');
-          return;
-        }
-      }
-      setChecking(false);
+      const ok = await ensureAdminAndRedirect(session);
+      if (!ok) setChecking(false);
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session) {
-        const email = session.user.email;
-        if (email !== ADMIN_EMAIL) {
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
+        const ok = await ensureAdminAndRedirect(session);
+        if (!ok) {
           toast({ title: "Access Denied", description: "এই account এর admin access নেই।", variant: "destructive" });
           await supabase.auth.signOut();
-          return;
+          setLoading(false);
+          setChecking(false);
         }
-        // Ensure admin role exists
-        const { data: existingRole } = await supabase
-          .from('user_roles')
-          .select('id')
-          .eq('user_id', session.user.id)
-          .eq('role', 'admin')
-          .maybeSingle();
-
-        if (!existingRole) {
-          await supabase
-            .from('user_roles')
-            .upsert({ user_id: session.user.id, role: 'admin' as any });
-        }
-
-        // Ensure profile exists
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('user_id', session.user.id)
-          .maybeSingle();
-
-        if (!profile) {
-          await supabase.from('profiles').insert({
-            user_id: session.user.id,
-            full_name: session.user.user_metadata?.full_name || 'Admin',
-            phone: '',
-          });
-        }
-
-        navigate('/admin/dashboard');
       }
     });
 
@@ -109,7 +69,7 @@ const AdminLogin = () => {
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
-      const { error } = await lovable.auth.signInWithOAuth("google", {
+      const { error, redirected } = await lovable.auth.signInWithOAuth("google", {
         redirect_uri: window.location.origin + "/admin/login",
         extraParams: {
           login_hint: ADMIN_EMAIL,
@@ -117,8 +77,19 @@ const AdminLogin = () => {
         },
       });
       if (error) throw error;
+
+      // Fallback: if provider doesn't redirect, verify current session immediately
+      if (!redirected) {
+        const { data: { session } } = await supabase.auth.getSession();
+        const ok = await ensureAdminAndRedirect(session);
+        if (!ok) {
+          toast({ title: "Access Denied", description: "এই account এর admin access নেই।", variant: "destructive" });
+          await supabase.auth.signOut();
+        }
+      }
     } catch (err: any) {
       toast({ title: "Login Error", description: err.message, variant: "destructive" });
+    } finally {
       setLoading(false);
     }
   };
