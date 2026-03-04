@@ -197,6 +197,54 @@ export type Database = {
         }
         Relationships: []
       }
+      visitor_logs: {
+        Row: {
+          browser: string | null
+          city: string | null
+          country: string | null
+          created_at: string
+          device_type: string | null
+          duration_seconds: number | null
+          id: string
+          ip_address: string | null
+          os: string | null
+          page_path: string
+          referrer: string | null
+          session_id: string
+          user_id: string | null
+        }
+        Insert: {
+          browser?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          device_type?: string | null
+          duration_seconds?: number | null
+          id?: string
+          ip_address?: string | null
+          os?: string | null
+          page_path: string
+          referrer?: string | null
+          session_id: string
+          user_id?: string | null
+        }
+        Update: {
+          browser?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          device_type?: string | null
+          duration_seconds?: number | null
+          id?: string
+          ip_address?: string | null
+          os?: string | null
+          page_path?: string
+          referrer?: string | null
+          session_id?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -206,6 +254,16 @@ export type Database = {
       admin_get_all_sellers: { Args: never; Returns: Json }
       admin_get_all_users: { Args: never; Returns: Json }
       admin_get_stats: { Args: never; Returns: Json }
+      admin_get_visitor_analytics: {
+        Args: {
+          p_browser?: string
+          p_country?: string
+          p_days?: number
+          p_device_type?: string
+          p_page_path?: string
+        }
+        Returns: Json
+      }
       admin_toggle_seller_active: {
         Args: { p_active: boolean; p_seller_user_id: string }
         Returns: undefined
