@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Save, Clock, Users, CalendarOff, MessageSquare } from "lucide-react";
+import { ArrowLeft, Save, Clock, Users, CalendarOff, MessageSquare, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +27,8 @@ const SellerSettings = () => {
     booking_end_time: "17:00",
     max_bookings: 30,
     customer_message: "",
+    alarm_message: "আর ২ জন বাকি! প্রস্তুত হোন!",
+    alarm_threshold: 2,
   });
   const [offDays, setOffDays] = useState<number[]>([]);
   const [offDates, setOffDates] = useState<Date[]>([]);
@@ -38,7 +40,7 @@ const SellerSettings = () => {
 
       const { data } = await supabase
         .from("seller_profiles")
-        .select("booking_start_time, booking_end_time, max_bookings, off_days, off_dates, customer_message")
+        .select("booking_start_time, booking_end_time, max_bookings, off_days, off_dates, customer_message, alarm_message, alarm_threshold")
         .eq("user_id", user.id)
         .single();
 
@@ -55,6 +57,8 @@ const SellerSettings = () => {
           booking_end_time: data.booking_end_time?.slice(0, 5) || "17:00",
           max_bookings: data.max_bookings || 30,
           customer_message: (data.customer_message as string) || "",
+          alarm_message: (data as any).alarm_message || "আর ২ জন বাকি! প্রস্তুত হোন!",
+          alarm_threshold: (data as any).alarm_threshold || 2,
         });
       }
     };
@@ -80,6 +84,8 @@ const SellerSettings = () => {
           off_days: offDaysEnabled ? offDays : [],
           off_dates: offDaysEnabled ? offDates.map(d => d.toISOString().split('T')[0]) : [],
           customer_message: form.customer_message || "",
+          alarm_message: form.alarm_message || "",
+          alarm_threshold: form.alarm_threshold || 2,
         })
         .eq("user_id", user.id);
 
@@ -216,6 +222,38 @@ const SellerSettings = () => {
               onChange={e => setForm(p => ({ ...p, customer_message: e.target.value }))}
               className="min-h-[80px]"
             />
+          </div>
+
+          {/* Alarm Settings */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <Bell className="w-5 h-5 text-seller" />
+              <div>
+                <p className="font-display font-semibold text-foreground">Queue Alarm Settings</p>
+                <p className="text-xs text-muted-foreground">কাস্টমারের পালা আসলে অ্যালার্ম</p>
+              </div>
+            </div>
+            <div className="pl-8 space-y-4">
+              <div className="space-y-2">
+                <Label className="text-sm text-muted-foreground">কতজন আগে অ্যালার্ম বাজবে</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={form.alarm_threshold}
+                  onChange={e => setForm(p => ({ ...p, alarm_threshold: parseInt(e.target.value) || 2 }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm text-muted-foreground">অ্যালার্ম মেসেজ</Label>
+                <Textarea
+                  placeholder="আর ২ জন বাকি! প্রস্তুত হোন!"
+                  value={form.alarm_message}
+                  onChange={e => setForm(p => ({ ...p, alarm_message: e.target.value }))}
+                  className="min-h-[60px]"
+                />
+              </div>
+            </div>
           </div>
 
           <Button

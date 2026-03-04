@@ -4,6 +4,8 @@ import { ArrowLeft, Hash, Users, CheckCircle, Clock, Loader2, User } from "lucid
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useParams } from "react-router-dom";
+import RatingDialog from "@/components/queue/RatingDialog";
+import QueueAlarm from "@/components/queue/QueueAlarm";
 
 const QueueDetailPage = () => {
   const navigate = useNavigate();
@@ -13,23 +15,21 @@ const QueueDetailPage = () => {
   const [allBookings, setAllBookings] = useState<any[]>([]);
   const [customerNames, setCustomerNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [hasRated, setHasRated] = useState(false);
 
   const loadData = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { navigate('/'); return; }
 
-    // Get this booking (own booking via RLS)
     const { data: bookingData } = await supabase.from('service_bookings')
       .select('*').eq('id', bookingId).single();
     if (!bookingData) { navigate('/dashboard/customer'); return; }
     setBooking(bookingData);
 
-    // Get seller info
     const { data: sellerData } = await supabase.from('seller_profiles')
       .select('*').eq('user_id', bookingData.seller_id).single();
     setSeller(sellerData);
 
-    // Get ALL bookings for this seller using security definer function (bypasses RLS)
     const { data: queueData } = await supabase.rpc('get_queue_data', {
       p_seller_id: bookingData.seller_id,
     });
@@ -37,10 +37,17 @@ const QueueDetailPage = () => {
     const allData = (queueData as any[] || []);
     setAllBookings(allData);
 
-    // Build name map from returned data
     const nameMap: Record<string, string> = {};
     allData.forEach((b: any) => { nameMap[b.customer_id] = b.customer_name; });
     setCustomerNames(nameMap);
+
+    // Check if already rated
+    if (bookingData.status === 'completed') {
+      const { data: ratingData } = await supabase.from('ratings')
+        .select('id').eq('booking_id', bookingData.id);
+      setHasRated((ratingData && ratingData.length > 0) || false);
+    }
+
     setLoading(false);
   };
 
@@ -67,6 +74,9 @@ const QueueDetailPage = () => {
   const completed = allBookings.filter((b: any) => b.status === 'completed');
   const currentSerial = inProgress[0]?.token_number || 0;
   const myPosition = waiting.findIndex(b => b.id === booking?.id);
+
+  const alarmThreshold = (seller as any)?.alarm_threshold ?? 2;
+  const alarmMessage = (seller as any)?.alarm_message || `আর ${myPosition} জন বাকি!`;
 
   const statusColors: Record<string, string> = {
     waiting: 'bg-accent/15 text-accent',
@@ -105,6 +115,16 @@ const QueueDetailPage = () => {
           </motion.div>
         )}
 
+        {/* Queue Alarm */}
+        {myPosition >= 0 && (
+          <QueueAlarm
+            peopleAhead={myPosition}
+            threshold={alarmThreshold}
+            alarmMessage={alarmMessage}
+            bookingStatus={booking?.status}
+          />
+        )}
+
         {/* My Token */}
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}
           className="glass-elevated rounded-2xl p-6 text-center">
@@ -119,6 +139,24 @@ const QueueDetailPage = () => {
             </p>
           )}
         </motion.div>
+
+        {/* Rating for completed bookings */}
+        {booking?.status === 'completed' && !hasRated && seller && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+            <RatingDialog
+              bookingId={booking.id}
+              sellerId={seller.user_id}
+              sellerName={seller.business_name}
+              onRated={() => { setHasRated(true); loadData(); }}
+            />
+          </motion.div>
+        )}
+
+        {booking?.status === 'completed' && hasRated && (
+          <div className="glass-card rounded-xl p-3 text-center text-sm text-muted-foreground">
+            ⭐ আপনি ইতোমধ্যে রেটিং দিয়েছেন
+          </div>
+        )}
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-3">
