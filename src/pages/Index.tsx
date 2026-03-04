@@ -75,7 +75,7 @@ const Index = () => {
               <span className="text-gradient-primary">Management</span>
             </h2>
             <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-              Book services, manage queues, and connect with sellers — all with secure OTP verification.
+              Book services, manage queues, and connect with sellers — all in one place.
             </p>
           </motion.div>
 

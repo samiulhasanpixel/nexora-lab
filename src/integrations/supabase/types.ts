@@ -74,9 +74,49 @@ export type Database = {
         }
         Relationships: []
       }
+      ratings: {
+        Row: {
+          booking_id: string
+          created_at: string
+          customer_id: string
+          id: string
+          rating: number
+          review: string | null
+          seller_id: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          customer_id: string
+          id?: string
+          rating: number
+          review?: string | null
+          seller_id: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          customer_id?: string
+          id?: string
+          rating?: number
+          review?: string | null
+          seller_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ratings_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "service_bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       seller_profiles: {
         Row: {
           address: string | null
+          alarm_message: string | null
+          alarm_threshold: number | null
           booking_end_time: string | null
           booking_start_time: string | null
           business_name: string
@@ -100,6 +140,8 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          alarm_message?: string | null
+          alarm_threshold?: number | null
           booking_end_time?: string | null
           booking_start_time?: string | null
           business_name?: string
@@ -123,6 +165,8 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          alarm_message?: string | null
+          alarm_threshold?: number | null
           booking_end_time?: string | null
           booking_start_time?: string | null
           business_name?: string
@@ -280,6 +324,16 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      submit_rating: {
+        Args: {
+          p_booking_id: string
+          p_customer_id: string
+          p_rating: number
+          p_review?: string
+          p_seller_id: string
+        }
+        Returns: Json
       }
     }
     Enums: {
