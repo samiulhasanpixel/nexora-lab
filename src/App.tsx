@@ -14,6 +14,7 @@ import SellerPublicProfile from "./pages/SellerPublicProfile";
 import NotFound from "./pages/NotFound";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
+import VisitorTracker from "./components/analytics/VisitorTracker";
 
 const queryClient = new QueryClient();
 
@@ -23,6 +24,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <VisitorTracker />
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth/:role" element={<AuthPage />} />

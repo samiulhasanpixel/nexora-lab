@@ -3,8 +3,9 @@ import { motion } from "framer-motion";
 import {
   Users, Store, BarChart3, LogOut, Shield, Search, Download,
   Hash, ChevronDown, Eye, ToggleLeft, ToggleRight, Loader2,
-  Calendar, CheckCircle, Clock, XCircle, RefreshCw
+  Calendar, CheckCircle, Clock, XCircle, RefreshCw, Activity
 } from "lucide-react";
+import AnalyticsTab from "@/components/admin/AnalyticsTab";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -234,10 +235,11 @@ const AdminDashboard = () => {
 
         {/* Tabs */}
         <Tabs defaultValue="users" className="space-y-4">
-          <TabsList className="grid grid-cols-3 w-full max-w-md">
+          <TabsList className="grid grid-cols-4 w-full max-w-lg">
             <TabsTrigger value="users" className="gap-1"><Users className="w-4 h-4" /> Users</TabsTrigger>
             <TabsTrigger value="sellers" className="gap-1"><Store className="w-4 h-4" /> Sellers</TabsTrigger>
             <TabsTrigger value="bookings" className="gap-1"><BarChart3 className="w-4 h-4" /> Bookings</TabsTrigger>
+            <TabsTrigger value="analytics" className="gap-1"><Activity className="w-4 h-4" /> Analytics</TabsTrigger>
           </TabsList>
 
           {/* Users Tab */}
@@ -392,6 +394,10 @@ const AdminDashboard = () => {
                 <p className="text-center text-muted-foreground py-8">No bookings found.</p>
               )}
             </div>
+          </TabsContent>
+          {/* Analytics Tab */}
+          <TabsContent value="analytics">
+            <AnalyticsTab />
           </TabsContent>
         </Tabs>
       </main>
