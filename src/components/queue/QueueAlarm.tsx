@@ -10,46 +10,75 @@ interface QueueAlarmProps {
   bookingStatus: string;
 }
 
-const ALARM_SOUNDS = [
-  { id: "default", label: "ডিফল্ট", freq: [800, 1000, 1200] },
-  { id: "gentle", label: "জেন্টেল", freq: [500, 600, 700] },
-  { id: "urgent", label: "আর্জেন্ট", freq: [1000, 1200, 1400] },
-];
-
 const QueueAlarm = ({ peopleAhead, threshold, alarmMessage, bookingStatus }: QueueAlarmProps) => {
   const [alarmTriggered, setAlarmTriggered] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [muted, setMuted] = useState(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isPlayingRef = useRef(false);
 
-  const playAlarmSound = useCallback(() => {
-    if (muted) return;
+  const playAlarmLoop = useCallback(() => {
+    if (muted || isPlayingRef.current) return;
+    isPlayingRef.current = true;
+
     try {
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close().catch(() => {});
+      }
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
       audioCtxRef.current = ctx;
-      
-      const freqs = ALARM_SOUNDS[0].freq;
-      freqs.forEach((freq, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.frequency.value = freq;
-        osc.type = "sine";
-        gain.gain.setValueAtTime(0.3, ctx.currentTime + i * 0.3);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + i * 0.3 + 0.25);
-        osc.start(ctx.currentTime + i * 0.3);
-        osc.stop(ctx.currentTime + i * 0.3 + 0.3);
-      });
+
+      const playSequence = () => {
+        if (!isPlayingRef.current || !audioCtxRef.current || audioCtxRef.current.state === 'closed') return;
+        const freqs = [800, 1000, 1200, 1000, 800];
+        freqs.forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.frequency.value = freq;
+          osc.type = "sine";
+          const start = ctx.currentTime + i * 0.25;
+          gain.gain.setValueAtTime(0.35, start);
+          gain.gain.exponentialRampToValueAtTime(0.01, start + 0.2);
+          osc.start(start);
+          osc.stop(start + 0.25);
+        });
+      };
+
+      playSequence();
+      // Repeat every 3 seconds continuously
+      intervalRef.current = setInterval(() => {
+        if (!isPlayingRef.current) return;
+        playSequence();
+        // Also vibrate each loop
+        if ("vibrate" in navigator) {
+          navigator.vibrate([300, 100, 300, 100, 500]);
+        }
+      }, 3000);
+
+      // Initial vibration
+      if ("vibrate" in navigator) {
+        navigator.vibrate([300, 100, 300, 100, 500]);
+      }
     } catch (e) {
       console.log("Audio not supported");
     }
   }, [muted]);
 
-  const triggerVibration = useCallback(() => {
+  const stopAlarm = useCallback(() => {
+    isPlayingRef.current = false;
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    if (audioCtxRef.current) {
+      audioCtxRef.current.close().catch(() => {});
+      audioCtxRef.current = null;
+    }
     if ("vibrate" in navigator) {
-      navigator.vibrate([300, 100, 300, 100, 500]);
+      navigator.vibrate(0);
     }
   }, []);
 
@@ -57,34 +86,38 @@ const QueueAlarm = ({ peopleAhead, threshold, alarmMessage, bookingStatus }: Que
     if (bookingStatus !== "waiting" && bookingStatus !== "in_progress") {
       setAlarmTriggered(false);
       setDismissed(false);
+      stopAlarm();
       return;
     }
 
     if (peopleAhead >= 0 && peopleAhead <= threshold && !dismissed) {
       if (!alarmTriggered) {
         setAlarmTriggered(true);
-        playAlarmSound();
-        triggerVibration();
-        // Repeat alarm every 10 seconds
-        intervalRef.current = setInterval(() => {
-          playAlarmSound();
-          triggerVibration();
-        }, 10000);
+        playAlarmLoop();
       }
     } else if (peopleAhead > threshold) {
       setAlarmTriggered(false);
       setDismissed(false);
+      stopAlarm();
     }
 
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [peopleAhead, threshold, dismissed, alarmTriggered, bookingStatus, playAlarmSound, triggerVibration]);
+    return () => { stopAlarm(); };
+  }, [peopleAhead, threshold, dismissed, alarmTriggered, bookingStatus, playAlarmLoop, stopAlarm]);
+
+  // Stop/restart sound when mute changes
+  useEffect(() => {
+    if (alarmTriggered && !dismissed) {
+      stopAlarm();
+      if (!muted) {
+        isPlayingRef.current = false; // reset so playAlarmLoop can start
+        playAlarmLoop();
+      }
+    }
+  }, [muted]);
 
   const handleDismiss = () => {
     setDismissed(true);
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    if (audioCtxRef.current) audioCtxRef.current.close();
+    stopAlarm();
   };
 
   return (
@@ -99,25 +132,23 @@ const QueueAlarm = ({ peopleAhead, threshold, alarmMessage, bookingStatus }: Que
           <div className="flex items-center justify-between mb-3">
             <motion.div
               animate={{ rotate: [0, -15, 15, -15, 15, 0] }}
-              transition={{ repeat: Infinity, duration: 1.5 }}
+              transition={{ repeat: Infinity, duration: 1 }}
             >
               <BellRing className="w-8 h-8 text-accent" />
             </motion.div>
-            <div className="flex gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setMuted(!muted)}
-                className="h-8 w-8"
-              >
-                {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-              </Button>
-            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setMuted(!muted)}
+              className="h-8 w-8"
+            >
+              {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+            </Button>
           </div>
           
           <motion.p
-            animate={{ scale: [1, 1.02, 1] }}
-            transition={{ repeat: Infinity, duration: 2 }}
+            animate={{ scale: [1, 1.05, 1] }}
+            transition={{ repeat: Infinity, duration: 1.5 }}
             className="text-xl font-display font-bold text-foreground mb-2"
           >
             {alarmMessage || `আর ${peopleAhead} জন বাকি!`}
@@ -125,7 +156,7 @@ const QueueAlarm = ({ peopleAhead, threshold, alarmMessage, bookingStatus }: Que
           <p className="text-sm text-muted-foreground mb-4">প্রস্তুত হোন, আপনার পালা আসছে!</p>
           
           <Button onClick={handleDismiss} variant="outline" size="sm" className="w-full">
-            <Bell className="w-4 h-4 mr-2" /> বুঝেছি, ধন্যবাদ
+            <Bell className="w-4 h-4 mr-2" /> বুঝতে পেরেছি
           </Button>
         </motion.div>
       )}
