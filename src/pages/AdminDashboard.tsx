@@ -3,12 +3,13 @@ import { motion } from "framer-motion";
 import {
   Users, Store, BarChart3, LogOut, Shield, Search, Download,
   Hash, ChevronDown, Eye, ToggleLeft, ToggleRight, Loader2,
-  Calendar, CheckCircle, Clock, XCircle, RefreshCw, Activity
+  Calendar, CheckCircle, Clock, XCircle, RefreshCw, Activity, CreditCard
 } from "lucide-react";
 import AnalyticsTab from "@/components/admin/AnalyticsTab";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -86,6 +87,19 @@ const AdminDashboard = () => {
         p_active: !currentActive,
       });
       toast({ title: currentActive ? "Blocked" : "Activated", description: `Seller ${currentActive ? 'blocked' : 'activated'} successfully.` });
+      loadData();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const toggleSellerUpgrade = async (sellerUserId: string, activate: boolean) => {
+    try {
+      await supabase.rpc('admin_upgrade_seller', {
+        p_seller_user_id: sellerUserId,
+        p_active: activate,
+      });
+      toast({ title: activate ? "Upgraded" : "Deactivated", description: `Seller ${activate ? 'upgraded to active' : 'set to expired'}.` });
       loadData();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -235,9 +249,10 @@ const AdminDashboard = () => {
 
         {/* Tabs */}
         <Tabs defaultValue="users" className="space-y-4">
-          <TabsList className="grid grid-cols-4 w-full max-w-lg">
+          <TabsList className="grid grid-cols-5 w-full max-w-2xl">
             <TabsTrigger value="users" className="gap-1"><Users className="w-4 h-4" /> Users</TabsTrigger>
             <TabsTrigger value="sellers" className="gap-1"><Store className="w-4 h-4" /> Sellers</TabsTrigger>
+            <TabsTrigger value="subscriptions" className="gap-1"><CreditCard className="w-4 h-4" /> Plans</TabsTrigger>
             <TabsTrigger value="bookings" className="gap-1"><BarChart3 className="w-4 h-4" /> Bookings</TabsTrigger>
             <TabsTrigger value="analytics" className="gap-1"><Activity className="w-4 h-4" /> Analytics</TabsTrigger>
           </TabsList>
@@ -341,6 +356,68 @@ const AdminDashboard = () => {
                 </motion.div>
               ))}
               {filteredSellers.length === 0 && (
+                <p className="text-center text-muted-foreground py-8">No sellers found.</p>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* Subscriptions Tab */}
+          <TabsContent value="subscriptions" className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                {sellers.filter((s: any) => s.plan_status === 'expired' || (s.plan_status === 'trial' && new Date(s.trial_end_date) < new Date())).length} expired sellers
+              </p>
+            </div>
+            <div className="space-y-2">
+              {sellers.map((seller: any, i: number) => {
+                const now = new Date();
+                const trialEnd = seller.trial_end_date ? new Date(seller.trial_end_date) : null;
+                const subEnd = seller.subscription_end ? new Date(seller.subscription_end) : null;
+                const isExpired = seller.plan_status === 'expired' || 
+                  (seller.plan_status === 'trial' && trialEnd && now > trialEnd) ||
+                  (seller.plan_status === 'active' && subEnd && now > subEnd);
+                const isActive = seller.plan_status === 'active' && (!subEnd || now <= subEnd);
+                const statusLabel = isExpired ? 'Expired' : isActive ? 'Active' : 'Trial';
+                const endDate = isActive ? subEnd : trialEnd;
+                const daysLeft = endDate ? Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))) : 0;
+
+                return (
+                  <motion.div
+                    key={seller.user_id}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: i * 0.02 }}
+                    className="glass-card rounded-xl p-4 flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isExpired ? 'bg-destructive/10' : 'gradient-seller'}`}>
+                        <Store className={`w-5 h-5 ${isExpired ? 'text-destructive' : 'text-seller-foreground'}`} />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-foreground text-sm">{seller.business_name}</p>
+                        <p className="text-xs text-muted-foreground">{seller.full_name} • {seller.phone || 'N/A'}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {isExpired ? `Expired: ${trialEnd?.toLocaleDateString() || 'N/A'}` : 
+                           `${daysLeft} days left`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Badge variant={isExpired ? 'destructive' : isActive ? 'default' : 'secondary'} className="text-xs">
+                        {statusLabel}
+                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Upgrade</span>
+                        <Switch
+                          checked={isActive}
+                          onCheckedChange={(checked) => toggleSellerUpgrade(seller.user_id, checked)}
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+              {sellers.length === 0 && (
                 <p className="text-center text-muted-foreground py-8">No sellers found.</p>
               )}
             </div>

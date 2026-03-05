@@ -129,11 +129,15 @@ export type Database = {
           max_bookings: number | null
           off_dates: string[] | null
           off_days: number[] | null
+          plan_status: string | null
           profile_image_url: string | null
           rating: number | null
+          subscription_end: string | null
           template_data: Json | null
           theme: string | null
           total_reviews: number | null
+          trial_end_date: string | null
+          trial_start_date: string | null
           unique_code: string
           updated_at: string
           user_id: string
@@ -154,11 +158,15 @@ export type Database = {
           max_bookings?: number | null
           off_dates?: string[] | null
           off_days?: number[] | null
+          plan_status?: string | null
           profile_image_url?: string | null
           rating?: number | null
+          subscription_end?: string | null
           template_data?: Json | null
           theme?: string | null
           total_reviews?: number | null
+          trial_end_date?: string | null
+          trial_start_date?: string | null
           unique_code: string
           updated_at?: string
           user_id: string
@@ -179,11 +187,15 @@ export type Database = {
           max_bookings?: number | null
           off_dates?: string[] | null
           off_days?: number[] | null
+          plan_status?: string | null
           profile_image_url?: string | null
           rating?: number | null
+          subscription_end?: string | null
           template_data?: Json | null
           theme?: string | null
           total_reviews?: number | null
+          trial_end_date?: string | null
+          trial_start_date?: string | null
           unique_code?: string
           updated_at?: string
           user_id?: string
@@ -309,6 +321,10 @@ export type Database = {
         Returns: Json
       }
       admin_toggle_seller_active: {
+        Args: { p_active: boolean; p_seller_user_id: string }
+        Returns: undefined
+      }
+      admin_upgrade_seller: {
         Args: { p_active: boolean; p_seller_user_id: string }
         Returns: undefined
       }
