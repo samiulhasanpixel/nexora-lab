@@ -27,6 +27,8 @@ const SellerDashboard = () => {
   const [bookings, setBookings] = useState<any[]>([]);
   const [copied, setCopied] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [trialExpired, setTrialExpired] = useState(false);
+  const [planInfo, setPlanInfo] = useState<{ status: string; daysLeft: number } | null>(null);
 
   const loadData = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -37,6 +39,30 @@ const SellerDashboard = () => {
 
     const { data: sellerData } = await supabase.from('seller_profiles').select('*').eq('user_id', user.id).single();
     setSellerProfile(sellerData);
+
+    // Check trial/subscription status
+    if (sellerData) {
+      const now = new Date();
+      const planStatus = (sellerData as any).plan_status || 'trial';
+      const trialEnd = (sellerData as any).trial_end_date ? new Date((sellerData as any).trial_end_date) : null;
+      const subEnd = (sellerData as any).subscription_end ? new Date((sellerData as any).subscription_end) : null;
+
+      if (planStatus === 'trial' && trialEnd && now > trialEnd) {
+        setTrialExpired(true);
+        setPlanInfo({ status: 'expired', daysLeft: 0 });
+      } else if (planStatus === 'expired') {
+        setTrialExpired(true);
+        setPlanInfo({ status: 'expired', daysLeft: 0 });
+      } else if (planStatus === 'active' && subEnd && now > subEnd) {
+        setTrialExpired(true);
+        setPlanInfo({ status: 'expired', daysLeft: 0 });
+      } else {
+        setTrialExpired(false);
+        const endDate = planStatus === 'active' ? subEnd : trialEnd;
+        const daysLeft = endDate ? Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))) : 0;
+        setPlanInfo({ status: planStatus, daysLeft });
+      }
+    }
 
     const { data: bookingData } = await supabase.from('service_bookings').select('*').eq('seller_id', user.id).order('token_number', { ascending: true });
     setBookings(bookingData || []);
@@ -104,6 +130,34 @@ const SellerDashboard = () => {
     cancelled: 'bg-destructive/15 text-destructive',
   };
 
+  // Trial expired overlay
+  if (trialExpired) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="glass-elevated rounded-2xl p-8 max-w-md w-full text-center space-y-6"
+        >
+          <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
+            <LogOut className="w-8 h-8 text-destructive" />
+          </div>
+          <h2 className="text-2xl font-display font-bold text-foreground">Your free trial has expired.</h2>
+          <p className="text-muted-foreground">Upgrade your plan to continue using Smart Queue.</p>
+          <Button
+            className="w-full gradient-primary text-primary-foreground border-0"
+            onClick={() => window.open('https://wa.me/8801XXXXXXXXX?text=I%20want%20to%20upgrade%20my%20seller%20account', '_blank')}
+          >
+            Upgrade Now
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2 text-muted-foreground">
+            <LogOut className="w-4 h-4" /> Logout
+          </Button>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -149,6 +203,32 @@ const SellerDashboard = () => {
               {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
               {copied ? "Copied!" : "Copy Code"}
             </Button>
+          </motion.div>
+        )}
+
+        {/* Plan Status */}
+        {planInfo && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-card rounded-xl p-4 flex items-center justify-between"
+          >
+            <div>
+              <p className="text-sm font-display font-semibold text-foreground">
+                Plan: <span className="capitalize">{planInfo.status}</span>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {planInfo.status === 'trial' ? `Expires in ${planInfo.daysLeft} days` : 
+                 planInfo.status === 'active' ? `Renews in ${planInfo.daysLeft} days` : 'Expired'}
+              </p>
+            </div>
+            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+              planInfo.status === 'active' ? 'bg-green-100 text-green-700' :
+              planInfo.status === 'trial' ? 'bg-primary/15 text-primary' :
+              'bg-destructive/15 text-destructive'
+            }`}>
+              {planInfo.status === 'trial' ? 'Free Trial' : planInfo.status === 'active' ? 'Active' : 'Expired'}
+            </span>
           </motion.div>
         )}
 

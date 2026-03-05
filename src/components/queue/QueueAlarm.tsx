@@ -16,59 +16,8 @@ const QueueAlarm = ({ peopleAhead, threshold, alarmMessage, bookingStatus }: Que
   const [muted, setMuted] = useState(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const isPlayingRef = useRef(false);
 
-  const playAlarmLoop = useCallback(() => {
-    if (muted || isPlayingRef.current) return;
-    isPlayingRef.current = true;
-
-    try {
-      if (audioCtxRef.current) {
-        audioCtxRef.current.close().catch(() => {});
-      }
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      audioCtxRef.current = ctx;
-
-      const playSequence = () => {
-        if (!isPlayingRef.current || !audioCtxRef.current || audioCtxRef.current.state === 'closed') return;
-        const freqs = [800, 1000, 1200, 1000, 800];
-        freqs.forEach((freq, i) => {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.frequency.value = freq;
-          osc.type = "sine";
-          const start = ctx.currentTime + i * 0.25;
-          gain.gain.setValueAtTime(0.35, start);
-          gain.gain.exponentialRampToValueAtTime(0.01, start + 0.2);
-          osc.start(start);
-          osc.stop(start + 0.25);
-        });
-      };
-
-      playSequence();
-      // Repeat every 3 seconds continuously
-      intervalRef.current = setInterval(() => {
-        if (!isPlayingRef.current) return;
-        playSequence();
-        // Also vibrate each loop
-        if ("vibrate" in navigator) {
-          navigator.vibrate([300, 100, 300, 100, 500]);
-        }
-      }, 3000);
-
-      // Initial vibration
-      if ("vibrate" in navigator) {
-        navigator.vibrate([300, 100, 300, 100, 500]);
-      }
-    } catch (e) {
-      console.log("Audio not supported");
-    }
-  }, [muted]);
-
-  const stopAlarm = useCallback(() => {
-    isPlayingRef.current = false;
+  const stopSound = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
@@ -82,42 +31,100 @@ const QueueAlarm = ({ peopleAhead, threshold, alarmMessage, bookingStatus }: Que
     }
   }, []);
 
+  const playBeep = useCallback((ctx: AudioContext) => {
+    try {
+      if (ctx.state === 'closed') return;
+      const freqs = [800, 1000, 1200, 1000, 800];
+      freqs.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = freq;
+        osc.type = "sine";
+        const start = ctx.currentTime + i * 0.25;
+        gain.gain.setValueAtTime(0.4, start);
+        gain.gain.exponentialRampToValueAtTime(0.01, start + 0.2);
+        osc.start(start);
+        osc.stop(start + 0.25);
+      });
+    } catch (e) {
+      // audio error
+    }
+  }, []);
+
+  const startAlarmLoop = useCallback(() => {
+    stopSound();
+
+    if (muted) {
+      // Even if muted, still vibrate
+      if ("vibrate" in navigator) {
+        navigator.vibrate([300, 100, 300, 100, 500]);
+      }
+      intervalRef.current = setInterval(() => {
+        if ("vibrate" in navigator) navigator.vibrate([300, 100, 300, 100, 500]);
+      }, 3000);
+      return;
+    }
+
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      audioCtxRef.current = ctx;
+
+      // Ensure context is running (mobile needs user gesture resume)
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+
+      playBeep(ctx);
+      if ("vibrate" in navigator) navigator.vibrate([300, 100, 300, 100, 500]);
+
+      intervalRef.current = setInterval(() => {
+        if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+          playBeep(audioCtxRef.current);
+        }
+        if ("vibrate" in navigator) navigator.vibrate([300, 100, 300, 100, 500]);
+      }, 3000);
+    } catch (e) {
+      console.log("Audio not supported");
+    }
+  }, [muted, playBeep, stopSound]);
+
+  // Trigger alarm when conditions met
   useEffect(() => {
     if (bookingStatus !== "waiting" && bookingStatus !== "in_progress") {
       setAlarmTriggered(false);
       setDismissed(false);
-      stopAlarm();
+      stopSound();
       return;
     }
 
     if (peopleAhead >= 0 && peopleAhead <= threshold && !dismissed) {
       if (!alarmTriggered) {
         setAlarmTriggered(true);
-        playAlarmLoop();
       }
     } else if (peopleAhead > threshold) {
       setAlarmTriggered(false);
       setDismissed(false);
-      stopAlarm();
+      stopSound();
     }
 
-    return () => { stopAlarm(); };
-  }, [peopleAhead, threshold, dismissed, alarmTriggered, bookingStatus, playAlarmLoop, stopAlarm]);
+    return () => { stopSound(); };
+  }, [peopleAhead, threshold, dismissed, bookingStatus, stopSound]);
 
-  // Stop/restart sound when mute changes
+  // Start/restart loop when alarm state or mute changes
   useEffect(() => {
     if (alarmTriggered && !dismissed) {
-      stopAlarm();
-      if (!muted) {
-        isPlayingRef.current = false; // reset so playAlarmLoop can start
-        playAlarmLoop();
-      }
+      startAlarmLoop();
+    } else {
+      stopSound();
     }
-  }, [muted]);
+    return () => { stopSound(); };
+  }, [alarmTriggered, dismissed, muted, startAlarmLoop, stopSound]);
 
   const handleDismiss = () => {
     setDismissed(true);
-    stopAlarm();
+    stopSound();
   };
 
   return (
