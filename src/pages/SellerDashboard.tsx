@@ -47,15 +47,17 @@ const SellerDashboard = () => {
       const trialEnd = (sellerData as any).trial_end_date ? new Date((sellerData as any).trial_end_date) : null;
       const subEnd = (sellerData as any).subscription_end ? new Date((sellerData as any).subscription_end) : null;
 
-      if (planStatus === 'trial' && trialEnd && now > trialEnd) {
+      const isExpired = 
+        (planStatus === 'trial' && trialEnd && now > trialEnd) ||
+        planStatus === 'expired' ||
+        (planStatus === 'active' && subEnd && now > subEnd);
+
+      if (isExpired) {
         setTrialExpired(true);
         setPlanInfo({ status: 'expired', daysLeft: 0 });
-      } else if (planStatus === 'expired') {
-        setTrialExpired(true);
-        setPlanInfo({ status: 'expired', daysLeft: 0 });
-      } else if (planStatus === 'active' && subEnd && now > subEnd) {
-        setTrialExpired(true);
-        setPlanInfo({ status: 'expired', daysLeft: 0 });
+        if (planStatus !== 'expired') {
+          supabase.from('seller_profiles').update({ plan_status: 'expired' }).eq('user_id', user.id);
+        }
       } else {
         setTrialExpired(false);
         const endDate = planStatus === 'active' ? subEnd : trialEnd;
@@ -146,7 +148,7 @@ const SellerDashboard = () => {
           <p className="text-muted-foreground">Upgrade your plan to continue using Smart Queue.</p>
           <Button
             className="w-full gradient-primary text-primary-foreground border-0"
-            onClick={() => window.open('https://wa.me/8801XXXXXXXXX?text=I%20want%20to%20upgrade%20my%20seller%20account', '_blank')}
+            onClick={() => window.open('https://wa.me/8801710201124?text=I%20want%20to%20upgrade%20my%20seller%20account.%20Business%3A%20' + encodeURIComponent(sellerProfile?.business_name || ''), '_blank')}
           >
             Upgrade Now
           </Button>
