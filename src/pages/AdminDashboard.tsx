@@ -35,6 +35,8 @@ const AdminDashboard = () => {
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [refreshing, setRefreshing] = useState(false);
+  const [planFilter, setPlanFilter] = useState("all");
+  const [upgradeDays, setUpgradeDays] = useState<Record<string, number>>({});
 
   const loadData = async () => {
     try {
@@ -95,11 +97,13 @@ const AdminDashboard = () => {
 
   const toggleSellerUpgrade = async (sellerUserId: string, activate: boolean) => {
     try {
+      const days = upgradeDays[sellerUserId] || 30;
       await supabase.rpc('admin_upgrade_seller', {
         p_seller_user_id: sellerUserId,
         p_active: activate,
+        p_days: days,
       });
-      toast({ title: activate ? "Upgraded" : "Deactivated", description: `Seller ${activate ? 'upgraded to active' : 'set to expired'}.` });
+      toast({ title: activate ? "Upgraded" : "Deactivated", description: `Seller ${activate ? `upgraded for ${days} days` : 'set to expired'}.` });
       loadData();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -363,13 +367,41 @@ const AdminDashboard = () => {
 
           {/* Subscriptions Tab */}
           <TabsContent value="subscriptions" className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <p className="text-sm text-muted-foreground">
-                {sellers.filter((s: any) => s.plan_status === 'expired' || (s.plan_status === 'trial' && new Date(s.trial_end_date) < new Date())).length} expired sellers
+                {sellers.filter((s: any) => {
+                  const now = new Date();
+                  const trialEnd = s.trial_end_date ? new Date(s.trial_end_date) : null;
+                  const subEnd = s.subscription_end ? new Date(s.subscription_end) : null;
+                  return s.plan_status === 'expired' || 
+                    (s.plan_status === 'trial' && trialEnd && now > trialEnd) ||
+                    (s.plan_status === 'active' && subEnd && now > subEnd);
+                }).length} expired sellers
               </p>
+              <Select value={planFilter} onValueChange={setPlanFilter}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Filter" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Plans</SelectItem>
+                  <SelectItem value="expired">Expired</SelectItem>
+                  <SelectItem value="trial">Trial</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
-              {sellers.map((seller: any, i: number) => {
+              {sellers.filter((seller: any) => {
+                const now = new Date();
+                const trialEnd = seller.trial_end_date ? new Date(seller.trial_end_date) : null;
+                const subEnd = seller.subscription_end ? new Date(seller.subscription_end) : null;
+                const isExpired = seller.plan_status === 'expired' || 
+                  (seller.plan_status === 'trial' && trialEnd && now > trialEnd) ||
+                  (seller.plan_status === 'active' && subEnd && now > subEnd);
+                const isActive = seller.plan_status === 'active' && (!subEnd || now <= subEnd);
+                const currentStatus = isExpired ? 'expired' : isActive ? 'active' : 'trial';
+                return planFilter === 'all' || currentStatus === planFilter;
+              }).map((seller: any, i: number) => {
                 const now = new Date();
                 const trialEnd = seller.trial_end_date ? new Date(seller.trial_end_date) : null;
                 const subEnd = seller.subscription_end ? new Date(seller.subscription_end) : null;
@@ -387,7 +419,7 @@ const AdminDashboard = () => {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: i * 0.02 }}
-                    className="glass-card rounded-xl p-4 flex items-center justify-between"
+                    className="glass-card rounded-xl p-4 flex items-center justify-between flex-wrap gap-3"
                   >
                     <div className="flex items-center gap-3">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isExpired ? 'bg-destructive/10' : 'gradient-seller'}`}>
@@ -397,7 +429,7 @@ const AdminDashboard = () => {
                         <p className="font-semibold text-foreground text-sm">{seller.business_name}</p>
                         <p className="text-xs text-muted-foreground">{seller.full_name} • {seller.phone || 'N/A'}</p>
                         <p className="text-xs text-muted-foreground">
-                          {isExpired ? `Expired: ${trialEnd?.toLocaleDateString() || 'N/A'}` : 
+                          {isExpired ? `Expired: ${(subEnd || trialEnd)?.toLocaleDateString() || 'N/A'}` : 
                            `${daysLeft} days left`}
                         </p>
                       </div>
@@ -407,7 +439,16 @@ const AdminDashboard = () => {
                         {statusLabel}
                       </Badge>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">Upgrade</span>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={365}
+                          className="w-16 h-8 text-xs text-center"
+                          placeholder="30"
+                          value={upgradeDays[seller.user_id] || ''}
+                          onChange={e => setUpgradeDays(prev => ({ ...prev, [seller.user_id]: parseInt(e.target.value) || 30 }))}
+                        />
+                        <span className="text-xs text-muted-foreground">days</span>
                         <Switch
                           checked={isActive}
                           onCheckedChange={(checked) => toggleSellerUpgrade(seller.user_id, checked)}

@@ -324,10 +324,19 @@ export type Database = {
         Args: { p_active: boolean; p_seller_user_id: string }
         Returns: undefined
       }
-      admin_upgrade_seller: {
-        Args: { p_active: boolean; p_seller_user_id: string }
-        Returns: undefined
-      }
+      admin_upgrade_seller:
+        | {
+            Args: { p_active: boolean; p_seller_user_id: string }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_active: boolean
+              p_days?: number
+              p_seller_user_id: string
+            }
+            Returns: undefined
+          }
       create_booking: {
         Args: { p_customer_id: string; p_seller_id: string }
         Returns: Json
