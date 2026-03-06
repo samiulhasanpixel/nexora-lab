@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { LogOut, Users, Copy, Check, ChevronRight, Hash, User, Pencil, Settings, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
+
 import { supabase } from "@/integrations/supabase/client";
 import { signOut } from "@/lib/auth";
 import { useNavigate } from "react-router-dom";
@@ -30,6 +30,30 @@ const SellerDashboard = () => {
   const [trialExpired, setTrialExpired] = useState(false);
   const [planInfo, setPlanInfo] = useState<{ status: string; daysLeft: number } | null>(null);
 
+  const getEffectivePlan = (sellerData: any) => {
+    const now = new Date();
+    const rawStatus = sellerData?.plan_status || 'trial';
+    const trialEnd = sellerData?.trial_end_date ? new Date(sellerData.trial_end_date) : null;
+    const subEnd = sellerData?.subscription_end ? new Date(sellerData.subscription_end) : null;
+
+    const expiresAt = rawStatus === 'active' ? subEnd : trialEnd;
+    const dateExpired = !!(expiresAt && now > expiresAt);
+    const expired = rawStatus === 'expired' || dateExpired;
+
+    if (expired) {
+      return { status: 'expired' as const, daysLeft: 0 };
+    }
+
+    const daysLeft = expiresAt
+      ? Math.max(0, Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+      : 0;
+
+    return {
+      status: (rawStatus === 'active' ? 'active' : 'trial') as 'active' | 'trial',
+      daysLeft,
+    };
+  };
+
   const loadData = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { navigate('/'); return; }
@@ -40,30 +64,22 @@ const SellerDashboard = () => {
     const { data: sellerData } = await supabase.from('seller_profiles').select('*').eq('user_id', user.id).single();
     setSellerProfile(sellerData);
 
-    // Check trial/subscription status
     if (sellerData) {
-      const now = new Date();
-      const planStatus = (sellerData as any).plan_status || 'trial';
-      const trialEnd = (sellerData as any).trial_end_date ? new Date((sellerData as any).trial_end_date) : null;
-      const subEnd = (sellerData as any).subscription_end ? new Date((sellerData as any).subscription_end) : null;
+      const plan = getEffectivePlan(sellerData);
+      const shouldForceExpire = plan.status === 'expired' && (sellerData.plan_status !== 'expired' || sellerData.is_active !== false);
 
-      const isExpired = 
-        (planStatus === 'trial' && trialEnd && now > trialEnd) ||
-        planStatus === 'expired' ||
-        (planStatus === 'active' && subEnd && now > subEnd);
-
-      if (isExpired) {
-        setTrialExpired(true);
-        setPlanInfo({ status: 'expired', daysLeft: 0 });
-        if (planStatus !== 'expired') {
-          supabase.from('seller_profiles').update({ plan_status: 'expired' }).eq('user_id', user.id);
-        }
-      } else {
-        setTrialExpired(false);
-        const endDate = planStatus === 'active' ? subEnd : trialEnd;
-        const daysLeft = endDate ? Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))) : 0;
-        setPlanInfo({ status: planStatus, daysLeft });
+      if (shouldForceExpire) {
+        await supabase
+          .from('seller_profiles')
+          .update({ plan_status: 'expired', is_active: false })
+          .eq('user_id', user.id);
       }
+
+      setTrialExpired(plan.status === 'expired');
+      setPlanInfo(plan);
+    } else {
+      setTrialExpired(false);
+      setPlanInfo(null);
     }
 
     const { data: bookingData } = await supabase.from('service_bookings').select('*').eq('seller_id', user.id).order('token_number', { ascending: true });
@@ -73,13 +89,36 @@ const SellerDashboard = () => {
   useEffect(() => {
     loadData();
 
-    const channel = supabase.channel('seller-bookings')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'service_bookings' }, () => {
-        loadData();
-      })
-      .subscribe();
+    let userId: string | null = null;
 
-    return () => { supabase.removeChannel(channel); };
+    const subscribe = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      userId = user?.id ?? null;
+
+      const channel = supabase.channel('seller-dashboard-live')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'service_bookings' }, () => {
+          loadData();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'seller_profiles', filter: userId ? `user_id=eq.${userId}` : undefined }, () => {
+          loadData();
+        })
+        .subscribe();
+
+      return channel;
+    };
+
+    let activeChannel: ReturnType<typeof supabase.channel> | null = null;
+
+    subscribe().then((channel) => {
+      activeChannel = channel;
+    });
+
+    const interval = window.setInterval(loadData, 30000);
+
+    return () => {
+      window.clearInterval(interval);
+      if (activeChannel) supabase.removeChannel(activeChannel);
+    };
   }, [navigate]);
 
   const updateStatus = async (id: string, status: string) => {
@@ -221,7 +260,7 @@ const SellerDashboard = () => {
               </p>
               <p className="text-xs text-muted-foreground">
                 {planInfo.status === 'trial' ? `Expires in ${planInfo.daysLeft} days` : 
-                 planInfo.status === 'active' ? `Renews in ${planInfo.daysLeft} days` : 'Expired'}
+                 planInfo.status === 'active' ? `Expires in ${planInfo.daysLeft} days` : 'Expired'}
               </p>
             </div>
             <span className={`px-3 py-1 rounded-full text-xs font-semibold ${

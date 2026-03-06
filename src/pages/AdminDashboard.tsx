@@ -35,7 +35,7 @@ const AdminDashboard = () => {
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [refreshing, setRefreshing] = useState(false);
-  const [planFilter, setPlanFilter] = useState("all");
+  const [planFilter, setPlanFilter] = useState("expired");
   const [upgradeDays, setUpgradeDays] = useState<Record<string, number>>({});
 
   const loadData = async () => {
