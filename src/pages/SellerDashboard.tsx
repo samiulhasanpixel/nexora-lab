@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { signOut } from "@/lib/auth";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import LiveClock from "@/components/LiveClock";
 import {
   AlertDialog,
   AlertDialogAction,
