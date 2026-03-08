@@ -196,6 +196,7 @@ const CustomerDashboard = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <LiveClock />
       {/* Header */}
       <header className="border-b border-border bg-card/80 backdrop-blur-xl sticky top-0 z-20">
         <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
