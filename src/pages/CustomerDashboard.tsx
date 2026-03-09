@@ -8,6 +8,9 @@ import { signOut } from "@/lib/auth";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import LiveClock from "@/components/LiveClock";
+import MobileBottomNav from "@/components/MobileBottomNav";
+import ThemeToggle from "@/components/ThemeToggle";
+import { useDeviceMode } from "@/hooks/useDeviceMode";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,6 +26,8 @@ import {
 const CustomerDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { mode } = useDeviceMode();
+  const isMobileMode = mode === 'mobile';
   const [searchCode, setSearchCode] = useState("");
   const [sellers, setSellers] = useState<any[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
@@ -46,12 +51,10 @@ const CustomerDashboard = () => {
       const { data: sellerData } = await supabase.from('seller_profiles').select('*').eq('is_active', true);
       setSellers(sellerData || []);
 
-      // Build seller map for showing seller name in bookings
       const map: Record<string, any> = {};
       (sellerData || []).forEach(s => { map[s.user_id] = s; });
       setSellerMap(map);
 
-      // Fetch queue stats for each seller the customer has bookings with
       const sellerIds = [...new Set((bookingData || []).map(b => b.seller_id))];
       const statsMap: Record<string, any> = {};
       for (const sid of sellerIds) {
@@ -83,7 +86,6 @@ const CustomerDashboard = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Check duplicate booking within 12 hours for same seller
       const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
       const { data: recentBookings } = await supabase.from('service_bookings')
         .select('id')
@@ -93,42 +95,38 @@ const CustomerDashboard = () => {
         .in('status', ['waiting', 'in_progress']);
 
       if (recentBookings && recentBookings.length > 0) {
-        toast({ title: "Already Booked!", description: "আপনি ইতোমধ্যে এই সেলারে বুক করেছেন। ১২ ঘণ্টার মধ্যে আবার বুক করা যাবে না।", variant: "destructive" });
+        toast({ title: "Already Booked!", description: "You have already booked this seller. Cannot book again within 12 hours.", variant: "destructive" });
         setLoading(false);
         return;
       }
 
-      // Check off-days (weekly)
       const today = new Date();
       const dayOfWeek = today.getDay();
       const sellerOffDays = (seller.off_days as number[]) || [];
       if (sellerOffDays.includes(dayOfWeek)) {
-        toast({ title: "Closed Today!", description: "আজ এই সেলারের বুকিং বন্ধ আছে।", variant: "destructive" });
+        toast({ title: "Closed Today!", description: "This seller is not accepting bookings today.", variant: "destructive" });
         setLoading(false);
         return;
       }
 
-      // Check off-dates (specific dates)
       const todayStr = today.toISOString().split('T')[0];
       const sellerOffDates = (seller.off_dates as string[]) || [];
       if (sellerOffDates.includes(todayStr)) {
-        toast({ title: "Closed Today!", description: "আজ এই সেলারের বুকিং বন্ধ আছে।", variant: "destructive" });
+        toast({ title: "Closed Today!", description: "This seller is not accepting bookings today.", variant: "destructive" });
         setLoading(false);
         return;
       }
 
-      // Check seller time window
       if (seller.booking_start_time && seller.booking_end_time) {
         const now = new Date();
         const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:00`;
         if (currentTime < seller.booking_start_time || currentTime > seller.booking_end_time) {
-          toast({ title: "Time's Up!", description: `বুকিং শুধুমাত্র ${seller.booking_start_time.slice(0, 5)} - ${seller.booking_end_time.slice(0, 5)} এর মধ্যে সম্ভব।`, variant: "destructive" });
+          toast({ title: "Time's Up!", description: `Booking is only available from ${seller.booking_start_time.slice(0, 5)} to ${seller.booking_end_time.slice(0, 5)}.`, variant: "destructive" });
           setLoading(false);
           return;
         }
       }
 
-      // Use server-side function for atomic seat check + token assignment
       const { data: result, error } = await supabase.rpc('create_booking', {
         p_customer_id: user.id,
         p_seller_id: seller.user_id,
@@ -139,14 +137,14 @@ const CustomerDashboard = () => {
       const res = result as any;
       if (!res.success) {
         if (res.error === 'seat_full') {
-          toast({ title: "Seat Full!", description: `সিট শেষ! সর্বোচ্চ ${res.max} জন বুক করতে পারে।`, variant: "destructive" });
+          toast({ title: "Seat Full!", description: `All seats are taken! Maximum ${res.max} bookings allowed.`, variant: "destructive" });
           setLoading(false);
           return;
         }
         throw new Error(res.error);
       }
 
-      toast({ title: "Booked!", description: `Your token number is #${res.token_number}` });
+      toast({ title: "Confirmed!", description: `Your token number is #${res.token_number}` });
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
@@ -171,7 +169,7 @@ const CustomerDashboard = () => {
       if (!user) return;
       const { error } = await supabase.from('service_bookings').delete().eq('customer_id', user.id);
       if (error) throw error;
-      toast({ title: "Cleared!", description: "সব কুপন মুছে ফেলা হয়েছে।" });
+      toast({ title: "Cleared!", description: "All your bookings have been deleted." });
       setBookings([]);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -181,23 +179,22 @@ const CustomerDashboard = () => {
   };
 
   const statusColors: Record<string, string> = {
-    waiting: 'bg-accent/15 text-accent',
+    waiting: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
     in_progress: 'bg-primary/15 text-primary',
-    completed: 'bg-green-100 text-green-700',
+    completed: 'bg-muted text-muted-foreground',
     cancelled: 'bg-destructive/15 text-destructive',
   };
 
   const statusLabels: Record<string, string> = {
-    waiting: 'Waiting',
+    waiting: 'Confirmed',
     in_progress: 'In Progress',
     completed: 'Completed',
     cancelled: 'Cancelled',
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className={`min-h-screen bg-background ${isMobileMode ? 'pb-20' : ''}`}>
       <LiveClock />
-      {/* Header */}
       <header className="border-b border-border bg-card/80 backdrop-blur-xl sticky top-0 z-20">
         <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -209,14 +206,16 @@ const CustomerDashboard = () => {
               <p className="text-xs text-muted-foreground">{profile?.phone}</p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2 text-muted-foreground">
-            <LogOut className="w-4 h-4" /> Logout
-          </Button>
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2 text-muted-foreground">
+              <LogOut className="w-4 h-4" /> {!isMobileMode && 'Logout'}
+            </Button>
+          </div>
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-8 space-y-8">
-        {/* My Bookings with detailed queue info */}
         {bookings.length > 0 && (
           <>
           <section>
@@ -256,7 +255,6 @@ const CustomerDashboard = () => {
                         <ChevronRight className="w-4 h-4 text-muted-foreground" />
                       </div>
                     </div>
-                    {/* Queue stats */}
                     {stats && b.status !== 'completed' && b.status !== 'cancelled' && (
                       <div className="grid grid-cols-3 gap-2 mt-2 pt-3 border-t border-border/50">
                         <div className="text-center">
@@ -279,13 +277,12 @@ const CustomerDashboard = () => {
             </div>
           </section>
 
-          {/* Clear all bookings */}
           <div className="glass-card rounded-xl p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Trash2 className="w-5 h-5 text-destructive" />
               <div>
-                <p className="font-display font-semibold text-foreground text-sm">Clear All My Coupons</p>
-                <p className="text-xs text-muted-foreground">সব কুপন ডিলিট হয়ে যাবে</p>
+                <p className="font-display font-semibold text-foreground text-sm">Clear All My Bookings</p>
+                <p className="text-xs text-muted-foreground">All bookings will be permanently deleted</p>
               </div>
             </div>
             <AlertDialog>
@@ -296,9 +293,9 @@ const CustomerDashboard = () => {
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>আপনি কি নিশ্চিত?</AlertDialogTitle>
+                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    এটি আপনার সব কুপন permanently ডিলিট করবে। এটি আর undo করা যাবে না।
+                    This will permanently delete all your bookings. This action cannot be undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -313,7 +310,6 @@ const CustomerDashboard = () => {
           </>
         )}
 
-        {/* Search & Book */}
         <section>
           <h2 className="font-display font-bold text-lg text-foreground mb-4 flex items-center gap-2">
             <Search className="w-5 h-5 text-primary" /> Find a Seller
@@ -347,7 +343,6 @@ const CustomerDashboard = () => {
                   </span>
                 )}
                 {seller.description && <p className="text-sm text-muted-foreground mb-2">{seller.description}</p>}
-                {/* Time & seat info */}
                 <div className="flex flex-wrap gap-2 mb-3 text-[11px] text-muted-foreground">
                   {seller.booking_start_time && seller.booking_end_time && (
                     <span className="bg-muted px-2 py-0.5 rounded-full">
@@ -371,6 +366,8 @@ const CustomerDashboard = () => {
           </div>
         </section>
       </main>
+
+      {isMobileMode && <MobileBottomNav role="customer" />}
     </div>
   );
 };
