@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, User, Store } from "lucide-react";
+import { ArrowLeft, User, Store, Mail, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { lovable } from "@/integrations/lovable/index";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -13,13 +14,15 @@ const AuthPage = () => {
   const { toast } = useToast();
   const isSeller = role === "seller";
   const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [magicLinkLoading, setMagicLinkLoading] = useState(false);
 
   useEffect(() => {
     const handleSession = async (session: any) => {
       if (!session) return;
       
       try {
-        // Check if user has a role, if not assign one
         const { data: existingRole } = await supabase
           .from('user_roles')
           .select('role')
@@ -29,10 +32,8 @@ const AuthPage = () => {
         const desiredRole = isSeller ? 'seller' : 'customer';
 
         if (!existingRole) {
-          // No role exists, create one
           await supabase.from('user_roles').insert({ user_id: session.user.id, role: desiredRole as 'customer' | 'seller' });
 
-          // Create profile if needed
           const { data: existingProfile } = await supabase
             .from('profiles')
             .select('id')
@@ -56,11 +57,9 @@ const AuthPage = () => {
             });
           }
         } else if (existingRole.role !== desiredRole) {
-          // Role exists but doesn't match the login path, update it
           await supabase.from('user_roles').update({ role: desiredRole as 'customer' | 'seller' })
             .eq('user_id', session.user.id);
 
-          // If switching to seller and no seller profile exists, create one
           if (desiredRole === 'seller') {
             const { data: sellerProfile } = await supabase
               .from('seller_profiles')
@@ -79,7 +78,6 @@ const AuthPage = () => {
           }
         }
 
-        // Redirect based on desired role (the one they chose to login as)
         if (desiredRole === 'seller') navigate('/dashboard/seller');
         else navigate('/dashboard/customer');
       } catch (err) {
@@ -87,7 +85,6 @@ const AuthPage = () => {
       }
     };
 
-    // Check existing session immediately on mount
     supabase.auth.getSession().then(({ data: { session } }) => {
       handleSession(session);
     });
@@ -116,6 +113,32 @@ const AuthPage = () => {
     }
   };
 
+  const handleMagicLink = async () => {
+    if (!email.trim()) {
+      toast({ title: "ইমেল দিন", description: "আপনার ইমেল অ্যাড্রেস লিখুন", variant: "destructive" });
+      return;
+    }
+    setMagicLinkLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/${role}`,
+        },
+      });
+      if (error) {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      } else {
+        setMagicLinkSent(true);
+        toast({ title: "✅ Magic Link পাঠানো হয়েছে!", description: "আপনার ইমেল চেক করুন এবং লিংকে ক্লিক করুন" });
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setMagicLinkLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6 relative overflow-hidden">
       <div className="absolute inset-0 pointer-events-none">
@@ -139,22 +162,76 @@ const AuthPage = () => {
           <h2 className="text-2xl font-display font-bold text-foreground mb-1">
             {isSeller ? 'Seller Login' : 'Customer Login'}
           </h2>
-          <p className="text-muted-foreground text-sm mb-8">
-            Sign in with your Google account to continue
+          <p className="text-muted-foreground text-sm mb-6">
+            ইমেল বা Google দিয়ে সাইন ইন করুন
           </p>
 
+          {/* Magic Link Section */}
+          {magicLinkSent ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="text-center p-6 rounded-xl border border-primary/20 bg-primary/5 mb-6"
+            >
+              <CheckCircle className="w-12 h-12 text-primary mx-auto mb-3" />
+              <h3 className="font-semibold text-foreground mb-1">Magic Link পাঠানো হয়েছে!</h3>
+              <p className="text-sm text-muted-foreground mb-3">
+                <span className="font-medium text-foreground">{email}</span> এ একটি লিংক পাঠানো হয়েছে। ইমেল চেক করুন এবং লিংকে ক্লিক করে লগইন করুন।
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setMagicLinkSent(false); setEmail(""); }}
+                className="text-muted-foreground"
+              >
+                অন্য ইমেল ব্যবহার করুন
+              </Button>
+            </motion.div>
+          ) : (
+            <div className="space-y-3 mb-6">
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  type="email"
+                  placeholder="আপনার ইমেল লিখুন"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleMagicLink()}
+                  className="pl-10 py-6"
+                />
+              </div>
+              <Button
+                onClick={handleMagicLink}
+                disabled={magicLinkLoading}
+                className={`w-full border-0 text-primary-foreground gap-2 text-base py-6 ${isSeller ? 'gradient-seller' : 'gradient-primary'}`}
+              >
+                <Mail className="w-5 h-5" />
+                {magicLinkLoading ? "পাঠানো হচ্ছে..." : "Magic Link দিয়ে লগইন"}
+              </Button>
+            </div>
+          )}
+
+          {/* Divider */}
+          <div className="flex items-center gap-3 mb-6">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs text-muted-foreground">অথবা</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+
+          {/* Google Login */}
           <Button
             onClick={handleGoogleLogin}
             disabled={loading}
-            className={`w-full border-0 text-primary-foreground gap-3 text-base py-6 ${isSeller ? 'gradient-seller' : 'gradient-primary'}`}
+            variant="outline"
+            className="w-full gap-3 text-base py-6"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
-              <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
-              <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-              <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-              <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
             </svg>
-            {loading ? "Connecting..." : "Continue with Google"}
+            {loading ? "Connecting..." : "Google দিয়ে লগইন"}
           </Button>
         </div>
       </motion.div>
