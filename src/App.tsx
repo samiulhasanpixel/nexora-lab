@@ -15,12 +15,19 @@ import NotFound from "./pages/NotFound";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import VisitorTracker from "./components/analytics/VisitorTracker";
+import { useThemeMode } from "@/hooks/useThemeMode";
 
 const queryClient = new QueryClient();
+
+const ThemeInit = () => {
+  useThemeMode(); // Initialize theme from localStorage on app load
+  return null;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
+      <ThemeInit />
       <Toaster />
       <Sonner />
       <BrowserRouter>

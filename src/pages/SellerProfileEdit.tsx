@@ -12,28 +12,28 @@ import { useToast } from "@/hooks/use-toast";
 
 const categoryTemplates: Record<string, { label: string; key: string; placeholder: string; type: 'input' | 'textarea' }[]> = {
   'Doctor': [
-    { label: 'যোগ্যতা (MBBS, FCPS...)', key: 'qualifications', placeholder: 'MBBS, FCPS (Medicine)', type: 'input' },
-    { label: 'বিশেষজ্ঞ', key: 'specialization', placeholder: 'Cardiology, Medicine', type: 'input' },
-    { label: 'ভিজিট ফি', key: 'visit_fee', placeholder: '৳500', type: 'input' },
-    { label: 'চেম্বার লোকেশন', key: 'chamber_location', placeholder: 'Room 301, ABC Hospital', type: 'input' },
-    { label: 'অভিজ্ঞতা', key: 'experience', placeholder: '10 years', type: 'input' },
+    { label: 'Qualifications (MBBS, FCPS...)', key: 'qualifications', placeholder: 'MBBS, FCPS (Medicine)', type: 'input' },
+    { label: 'Specialization', key: 'specialization', placeholder: 'Cardiology, Medicine', type: 'input' },
+    { label: 'Visit Fee', key: 'visit_fee', placeholder: '$50', type: 'input' },
+    { label: 'Chamber Location', key: 'chamber_location', placeholder: 'Room 301, ABC Hospital', type: 'input' },
+    { label: 'Experience', key: 'experience', placeholder: '10 years', type: 'input' },
   ],
   'Hospital': [
-    { label: 'বিভাগসমূহ (কমা দিয়ে)', key: 'departments', placeholder: 'Cardiology, Neurology, Orthopedics', type: 'textarea' },
-    { label: 'সুবিধাসমূহ (কমা দিয়ে)', key: 'facilities', placeholder: 'ICU, Emergency, Lab, Pharmacy', type: 'textarea' },
-    { label: 'ডাক্তারদের তালিকা (প্রতি লাইনে একজন)', key: 'doctors_list', placeholder: 'Dr. A (Cardiology) - ৳800\nDr. B (Medicine) - ৳600', type: 'textarea' },
-    { label: 'ভিজিট ফি রেঞ্জ', key: 'visit_fee', placeholder: '৳300 - ৳1500', type: 'input' },
-    { label: 'ইমার্জেন্সি কন্টাক্ট', key: 'emergency_info', placeholder: '01XXXXXXXXX', type: 'input' },
+    { label: 'Departments (comma separated)', key: 'departments', placeholder: 'Cardiology, Neurology, Orthopedics', type: 'textarea' },
+    { label: 'Facilities (comma separated)', key: 'facilities', placeholder: 'ICU, Emergency, Lab, Pharmacy', type: 'textarea' },
+    { label: 'Doctors List (one per line)', key: 'doctors_list', placeholder: 'Dr. A (Cardiology) - $80\nDr. B (Medicine) - $60', type: 'textarea' },
+    { label: 'Visit Fee Range', key: 'visit_fee', placeholder: '$30 - $150', type: 'input' },
+    { label: 'Emergency Contact', key: 'emergency_info', placeholder: '+1234567890', type: 'input' },
   ],
   'Salon': [
-    { label: 'সার্ভিস তালিকা (প্রতি লাইনে একটি)', key: 'services_list', placeholder: 'Haircut - ৳200\nShaving - ৳100\nFacial - ৳500', type: 'textarea' },
-    { label: 'মূল্য পরিসীমা', key: 'price_range', placeholder: '৳100 - ৳2000', type: 'input' },
-    { label: 'সময়সূচি', key: 'opening_hours', placeholder: '10:00 AM - 9:00 PM', type: 'input' },
+    { label: 'Services List (one per line)', key: 'services_list', placeholder: 'Haircut - $20\nShaving - $10\nFacial - $50', type: 'textarea' },
+    { label: 'Price Range', key: 'price_range', placeholder: '$10 - $200', type: 'input' },
+    { label: 'Opening Hours', key: 'opening_hours', placeholder: '10:00 AM - 9:00 PM', type: 'input' },
   ],
   'Parlor': [
-    { label: 'সার্ভিস ও প্যাকেজ (প্রতি লাইনে একটি)', key: 'services_list', placeholder: 'Facial - ৳500\nMakeup - ৳3000\nHair Treatment - ৳1500', type: 'textarea' },
-    { label: 'মূল্য পরিসীমা', key: 'price_range', placeholder: '৳200 - ৳5000', type: 'input' },
-    { label: 'সময়সূচি', key: 'opening_hours', placeholder: '10:00 AM - 8:00 PM', type: 'input' },
+    { label: 'Services & Packages (one per line)', key: 'services_list', placeholder: 'Facial - $50\nMakeup - $300\nHair Treatment - $150', type: 'textarea' },
+    { label: 'Price Range', key: 'price_range', placeholder: '$20 - $500', type: 'input' },
+    { label: 'Opening Hours', key: 'opening_hours', placeholder: '10:00 AM - 8:00 PM', type: 'input' },
   ],
 };
 
@@ -64,12 +64,10 @@ const SellerProfileEdit = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { navigate("/"); return; }
       setUserId(user.id);
-
       const { data } = await supabase
         .from("seller_profiles")
         .select("business_name, category, address, description, profile_image_url, theme, template_data")
         .eq("user_id", user.id).single();
-
       if (data) {
         setForm({
           business_name: data.business_name || "",
@@ -88,34 +86,22 @@ const SellerProfileEdit = () => {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !userId) return;
-
     if (file.size > 5 * 1024 * 1024) {
-      toast({ title: "Too Large", description: "ফাইল ৫MB এর কম হতে হবে", variant: "destructive" });
+      toast({ title: "Too Large", description: "File must be under 5MB", variant: "destructive" });
       return;
     }
-
     setUploading(true);
     try {
       const ext = file.name.split('.').pop();
       const filePath = `${userId}/profile.${ext}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('seller-images')
-        .upload(filePath, file, { upsert: true });
-
+      const { error: uploadError } = await supabase.storage.from('seller-images').upload(filePath, file, { upsert: true });
       if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('seller-images')
-        .getPublicUrl(filePath);
-
+      const { data: { publicUrl } } = supabase.storage.from('seller-images').getPublicUrl(filePath);
       setForm(p => ({ ...p, profile_image_url: publicUrl }));
-      toast({ title: "Uploaded! ✅", description: "ছবি আপলোড হয়েছে" });
+      toast({ title: "Uploaded! ✅", description: "Image uploaded successfully" });
     } catch (err: any) {
       toast({ title: "Upload Failed", description: err.message, variant: "destructive" });
-    } finally {
-      setUploading(false);
-    }
+    } finally { setUploading(false); }
   };
 
   const handleSave = async () => {
@@ -127,28 +113,21 @@ const SellerProfileEdit = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
-      const { error } = await supabase
-        .from("seller_profiles")
-        .update({
-          business_name: form.business_name.trim(),
-          category: form.category.trim(),
-          address: form.address.trim(),
-          description: form.description.trim(),
-          profile_image_url: form.profile_image_url.trim(),
-          theme: form.theme,
-          template_data: templateData,
-        } as any)
-        .eq("user_id", user.id);
-
+      const { error } = await supabase.from("seller_profiles").update({
+        business_name: form.business_name.trim(),
+        category: form.category.trim(),
+        address: form.address.trim(),
+        description: form.description.trim(),
+        profile_image_url: form.profile_image_url.trim(),
+        theme: form.theme,
+        template_data: templateData,
+      } as any).eq("user_id", user.id);
       if (error) throw error;
-      toast({ title: "Saved! ✅", description: "প্রোফাইল আপডেট হয়েছে" });
+      toast({ title: "Saved! ✅", description: "Profile updated successfully" });
       navigate("/dashboard/seller");
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   const matchedCategory = Object.keys(categoryTemplates).find(
@@ -168,7 +147,6 @@ const SellerProfileEdit = () => {
       </header>
 
       <main className="max-w-2xl mx-auto px-6 py-8 space-y-6">
-        {/* Profile Image Upload */}
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}
           className="glass-elevated rounded-2xl p-6 flex flex-col items-center gap-4">
           <div className="relative">
@@ -180,67 +158,59 @@ const SellerProfileEdit = () => {
                 <Camera className="w-8 h-8 text-muted-foreground" />
               </div>
             )}
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
+            <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
               className="absolute -bottom-2 -right-2 w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg hover:opacity-90 transition-opacity">
               {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
             </button>
           </div>
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-          <p className="text-xs text-muted-foreground">ফোন থেকে ছবি আপলোড করুন (সর্বোচ্চ ৫MB)</p>
+          <p className="text-xs text-muted-foreground">Upload image from your device (max 5MB)</p>
         </motion.div>
 
-        {/* Basic Info */}
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
           className="glass-elevated rounded-2xl p-6 space-y-5">
           <h2 className="font-display font-semibold text-foreground flex items-center gap-2">
             <Store className="w-5 h-5 text-primary" /> Basic Info
           </h2>
-
           <div className="space-y-2">
             <Label className="text-foreground font-medium">Business Name *</Label>
-            <Input placeholder="আপনার ব্যবসার নাম" value={form.business_name}
+            <Input placeholder="Your business name" value={form.business_name}
               onChange={e => setForm(p => ({ ...p, business_name: e.target.value }))} />
           </div>
-
           <div className="space-y-2">
             <Label className="text-foreground font-medium flex items-center gap-2">
               <Tag className="w-4 h-4 text-primary" /> Category
             </Label>
             <Select value={form.category} onValueChange={v => setForm(p => ({ ...p, category: v }))}>
-              <SelectTrigger><SelectValue placeholder="ক্যাটাগরি সিলেক্ট করুন" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
               <SelectContent>
                 {categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
-
           <div className="space-y-2">
             <Label className="text-foreground font-medium flex items-center gap-2">
               <MapPin className="w-4 h-4 text-primary" /> Address
             </Label>
-            <Input placeholder="আপনার ঠিকানা" value={form.address}
+            <Input placeholder="Your address" value={form.address}
               onChange={e => setForm(p => ({ ...p, address: e.target.value }))} />
           </div>
-
           <div className="space-y-2">
             <Label className="text-foreground font-medium flex items-center gap-2">
               <FileText className="w-4 h-4 text-primary" /> Description
             </Label>
-            <Textarea placeholder="আপনার সেবা সম্পর্কে লিখুন..." className="min-h-[80px]"
+            <Textarea placeholder="Describe your services..." className="min-h-[80px]"
               value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
           </div>
         </motion.div>
 
-        {/* Theme */}
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
           className="glass-elevated rounded-2xl p-6 space-y-5">
           <h2 className="font-display font-semibold text-foreground flex items-center gap-2">
-            <Palette className="w-5 h-5 text-primary" /> থিম কাস্টমাইজ
+            <Palette className="w-5 h-5 text-primary" /> Theme Customize
           </h2>
           <div className="space-y-2">
-            <Label className="text-foreground font-medium">প্রোফাইল থিম</Label>
+            <Label className="text-foreground font-medium">Profile Theme</Label>
             <Select value={form.theme} onValueChange={v => setForm(p => ({ ...p, theme: v }))}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -250,7 +220,6 @@ const SellerProfileEdit = () => {
           </div>
         </motion.div>
 
-        {/* Category-specific template */}
         {templateFields.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
             className="glass-elevated rounded-2xl p-6 space-y-5">
@@ -258,9 +227,8 @@ const SellerProfileEdit = () => {
               {matchedCategory === 'Doctor' && <Stethoscope className="w-5 h-5 text-primary" />}
               {matchedCategory === 'Hospital' && <Building2 className="w-5 h-5 text-primary" />}
               {(matchedCategory === 'Salon' || matchedCategory === 'Parlor') && <Scissors className="w-5 h-5 text-primary" />}
-              {matchedCategory} টেমপ্লেট
+              {matchedCategory} Template
             </h2>
-
             {templateFields.map(f => (
               <div key={f.key} className="space-y-2">
                 <Label className="text-foreground font-medium">{f.label}</Label>

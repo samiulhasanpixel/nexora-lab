@@ -13,7 +13,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-const DAY_NAMES = ["রবিবার", "সোমবার", "মঙ্গলবার", "বুধবার", "বৃহস্পতিবার", "শুক্রবার", "শনিবার"];
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 const SellerSettings = () => {
   const navigate = useNavigate();
@@ -27,7 +27,7 @@ const SellerSettings = () => {
     booking_end_time: "17:00",
     max_bookings: 30,
     customer_message: "",
-    alarm_message: "আর ২ জন বাকি! প্রস্তুত হোন!",
+    alarm_message: "Almost your turn! Get ready!",
     alarm_threshold: 2,
   });
   const [offDays, setOffDays] = useState<number[]>([]);
@@ -57,7 +57,7 @@ const SellerSettings = () => {
           booking_end_time: data.booking_end_time?.slice(0, 5) || "17:00",
           max_bookings: data.max_bookings || 30,
           customer_message: (data.customer_message as string) || "",
-          alarm_message: (data as any).alarm_message || "আর ২ জন বাকি! প্রস্তুত হোন!",
+          alarm_message: (data as any).alarm_message || "Almost your turn! Get ready!",
           alarm_threshold: (data as any).alarm_threshold || 2,
         });
       }
@@ -111,11 +111,9 @@ const SellerSettings = () => {
       </header>
 
       <main className="max-w-2xl mx-auto px-6 py-8">
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="glass-elevated rounded-2xl p-6 space-y-8"
-        >
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}
+          className="glass-elevated rounded-2xl p-6 space-y-8">
+
           {/* Time Window */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -123,7 +121,7 @@ const SellerSettings = () => {
                 <Clock className="w-5 h-5 text-seller" />
                 <div>
                   <p className="font-display font-semibold text-foreground">Booking Time Window</p>
-                  <p className="text-xs text-muted-foreground">নির্দিষ্ট সময়ের মধ্যেই বুকিং নেবেন</p>
+                  <p className="text-xs text-muted-foreground">Accept bookings only within specific hours</p>
                 </div>
               </div>
               <Switch checked={timeEnabled} onCheckedChange={setTimeEnabled} />
@@ -149,7 +147,7 @@ const SellerSettings = () => {
                 <Users className="w-5 h-5 text-seller" />
                 <div>
                   <p className="font-display font-semibold text-foreground">Max Seat Limit</p>
-                  <p className="text-xs text-muted-foreground">সর্বোচ্চ কতজন বুক করতে পারবে</p>
+                  <p className="text-xs text-muted-foreground">Maximum number of bookings allowed</p>
                 </div>
               </div>
               <Switch checked={countEnabled} onCheckedChange={setCountEnabled} />
@@ -171,14 +169,13 @@ const SellerSettings = () => {
                 <CalendarOff className="w-5 h-5 text-seller" />
                 <div>
                   <p className="font-display font-semibold text-foreground">Off Days / Dates</p>
-                  <p className="text-xs text-muted-foreground">যেদিন বুকিং বন্ধ থাকবে</p>
+                  <p className="text-xs text-muted-foreground">Days when bookings are closed</p>
                 </div>
               </div>
               <Switch checked={offDaysEnabled} onCheckedChange={setOffDaysEnabled} />
             </div>
             {offDaysEnabled && (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="pl-8 space-y-4">
-                {/* Weekly off days */}
                 <div className="space-y-2">
                   <Label className="text-sm text-muted-foreground">Weekly Off Days</Label>
                   <div className="flex flex-wrap gap-2">
@@ -193,15 +190,11 @@ const SellerSettings = () => {
                     ))}
                   </div>
                 </div>
-                {/* Specific off dates */}
                 <div className="space-y-2">
                   <Label className="text-sm text-muted-foreground">Specific Off Dates</Label>
-                  <Calendar
-                    mode="multiple"
-                    selected={offDates}
+                  <Calendar mode="multiple" selected={offDates}
                     onSelect={(dates) => setOffDates(dates || [])}
-                    className={cn("p-3 pointer-events-auto rounded-xl border border-border bg-card")}
-                  />
+                    className={cn("p-3 pointer-events-auto rounded-xl border border-border bg-card")} />
                 </div>
               </motion.div>
             )}
@@ -213,15 +206,12 @@ const SellerSettings = () => {
               <MessageSquare className="w-5 h-5 text-seller" />
               <div>
                 <p className="font-display font-semibold text-foreground">Customer Message</p>
-                <p className="text-xs text-muted-foreground">কাস্টমারদের জন্য রিয়েল-টাইম মেসেজ</p>
+                <p className="text-xs text-muted-foreground">Real-time message for customers</p>
               </div>
             </div>
-            <Textarea
-              placeholder="কাস্টমারদের জন্য কোনো বিশেষ নোটিশ লিখুন..."
-              value={form.customer_message}
-              onChange={e => setForm(p => ({ ...p, customer_message: e.target.value }))}
-              className="min-h-[80px]"
-            />
+            <Textarea placeholder="Write a special notice for customers..."
+              value={form.customer_message} onChange={e => setForm(p => ({ ...p, customer_message: e.target.value }))}
+              className="min-h-[80px]" />
           </div>
 
           {/* Alarm Settings */}
@@ -230,37 +220,26 @@ const SellerSettings = () => {
               <Bell className="w-5 h-5 text-seller" />
               <div>
                 <p className="font-display font-semibold text-foreground">Queue Alarm Settings</p>
-                <p className="text-xs text-muted-foreground">কাস্টমারের পালা আসলে অ্যালার্ম</p>
+                <p className="text-xs text-muted-foreground">Alert customers when their turn is near</p>
               </div>
             </div>
             <div className="pl-8 space-y-4">
               <div className="space-y-2">
-                <Label className="text-sm text-muted-foreground">কতজন আগে অ্যালার্ম বাজবে</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={10}
-                  value={form.alarm_threshold}
-                  onChange={e => setForm(p => ({ ...p, alarm_threshold: parseInt(e.target.value) || 2 }))}
-                />
+                <Label className="text-sm text-muted-foreground">Alert when this many people ahead</Label>
+                <Input type="number" min={1} max={10} value={form.alarm_threshold}
+                  onChange={e => setForm(p => ({ ...p, alarm_threshold: parseInt(e.target.value) || 2 }))} />
               </div>
               <div className="space-y-2">
-                <Label className="text-sm text-muted-foreground">অ্যালার্ম মেসেজ</Label>
-                <Textarea
-                  placeholder="আর ২ জন বাকি! প্রস্তুত হোন!"
-                  value={form.alarm_message}
-                  onChange={e => setForm(p => ({ ...p, alarm_message: e.target.value }))}
-                  className="min-h-[60px]"
-                />
+                <Label className="text-sm text-muted-foreground">Alarm Message</Label>
+                <Textarea placeholder="Almost your turn! Get ready!"
+                  value={form.alarm_message} onChange={e => setForm(p => ({ ...p, alarm_message: e.target.value }))}
+                  className="min-h-[60px]" />
               </div>
             </div>
           </div>
 
-          <Button
-            onClick={handleSave}
-            disabled={loading}
-            className="w-full gradient-seller text-seller-foreground border-0 hover:opacity-90 gap-2"
-          >
+          <Button onClick={handleSave} disabled={loading}
+            className="w-full gradient-seller text-seller-foreground border-0 hover:opacity-90 gap-2">
             <Save className="w-4 h-4" />
             {loading ? "Saving..." : "Save Settings"}
           </Button>

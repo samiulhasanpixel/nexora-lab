@@ -1,12 +1,16 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Users, Store, ArrowRight, Shield, Zap, Clock } from "lucide-react";
+import { Users, Store, ArrowRight, Shield, Zap, Clock, Monitor, Smartphone } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { useDeviceMode } from "@/hooks/useDeviceMode";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const Index = () => {
   const navigate = useNavigate();
+  const { mode, selectMode } = useDeviceMode();
+  const [showRoleSelection, setShowRoleSelection] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -24,15 +28,86 @@ const Index = () => {
     checkAuth();
   }, [navigate]);
 
+  useEffect(() => {
+    if (mode) setShowRoleSelection(true);
+  }, [mode]);
+
+  const handleDeviceSelect = (device: 'mobile' | 'desktop') => {
+    selectMode(device);
+    setShowRoleSelection(true);
+  };
+
+  // Device selection screen
+  if (!showRoleSelection) {
+    return (
+      <div className="min-h-screen bg-background overflow-hidden relative flex items-center justify-center p-6">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-primary/5 blur-3xl animate-pulse-glow" />
+          <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full bg-seller/5 blur-3xl animate-pulse-glow" style={{ animationDelay: '1s' }} />
+        </div>
+
+        <div className="absolute top-6 right-6 z-10">
+          <ThemeToggle />
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center max-w-lg w-full relative z-10"
+        >
+          <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center mx-auto mb-6">
+            <Zap className="w-7 h-7 text-primary-foreground" />
+          </div>
+          <h1
+            className="text-3xl font-display font-bold text-foreground mb-2 cursor-default select-none"
+            onClick={() => {
+              let clicks = (window as any).__qpAdminClicks || 0;
+              clicks++;
+              (window as any).__qpAdminClicks = clicks;
+              if (clicks >= 5) {
+                (window as any).__qpAdminClicks = 0;
+                navigate('/admin/login');
+              }
+              setTimeout(() => { (window as any).__qpAdminClicks = 0; }, 2000);
+            }}
+          >QueuePro</h1>
+          <p className="text-muted-foreground mb-10">Choose your device type for the best experience</p>
+
+          <div className="grid grid-cols-2 gap-4">
+            <motion.div
+              whileHover={{ y: -4 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => handleDeviceSelect('desktop')}
+              className="glass-elevated rounded-2xl p-8 cursor-pointer group"
+            >
+              <Monitor className="w-12 h-12 text-primary mx-auto mb-4 group-hover:scale-110 transition-transform" />
+              <h3 className="font-display font-bold text-foreground text-lg">Desktop</h3>
+              <p className="text-xs text-muted-foreground mt-1">Laptop / PC</p>
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -4 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => handleDeviceSelect('mobile')}
+              className="glass-elevated rounded-2xl p-8 cursor-pointer group"
+            >
+              <Smartphone className="w-12 h-12 text-seller mx-auto mb-4 group-hover:scale-110 transition-transform" />
+              <h3 className="font-display font-bold text-foreground text-lg">Mobile</h3>
+              <p className="text-xs text-muted-foreground mt-1">Phone / Tablet</p>
+            </motion.div>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background overflow-hidden relative">
-      {/* Decorative background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-primary/5 blur-3xl animate-pulse-glow" />
         <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full bg-seller/5 blur-3xl animate-pulse-glow" style={{ animationDelay: '1s' }} />
       </div>
 
-      {/* Header */}
       <header className="relative z-10 px-6 py-6">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <motion.div
@@ -57,10 +132,10 @@ const Index = () => {
               }}
             >QueuePro</h1>
           </motion.div>
+          <ThemeToggle />
         </div>
       </header>
 
-      {/* Hero */}
       <main className="relative z-10 px-6 pt-12 pb-20">
         <div className="max-w-6xl mx-auto">
           <motion.div
@@ -79,7 +154,6 @@ const Index = () => {
             </p>
           </motion.div>
 
-          {/* Role Selection Cards */}
           <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto mb-20">
             <motion.div
               initial={{ opacity: 0, y: 40 }}
@@ -122,7 +196,6 @@ const Index = () => {
             </motion.div>
           </div>
 
-          {/* Features */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -130,7 +203,7 @@ const Index = () => {
             className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto"
           >
             {[
-              { icon: Shield, title: "Google Verified", desc: "Secure Google authentication for access" },
+              { icon: Shield, title: "Verified Login", desc: "Secure Google & Email authentication" },
               { icon: Zap, title: "Real-time Queue", desc: "Live updates on your position and status" },
               { icon: Clock, title: "Smart Booking", desc: "Book services with unique seller codes" },
             ].map((feat, i) => (

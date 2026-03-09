@@ -94,26 +94,24 @@ const QueueDetailPage = () => {
   const currentSerial = inProgress[0]?.token_number || 0;
   const myPosition = waiting.findIndex(b => b.id === booking?.id);
 
-  // Customer threshold overrides seller default
   const sellerThreshold = (seller as any)?.alarm_threshold ?? 2;
   const effectiveThreshold = customerThreshold ?? sellerThreshold;
-  const alarmMessage = (seller as any)?.alarm_message || `আর ${myPosition} জন বাকি!`;
+  const alarmMessage = (seller as any)?.alarm_message || `Only ${myPosition} people ahead!`;
 
   const statusColors: Record<string, string> = {
-    waiting: 'bg-accent/15 text-accent',
+    waiting: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
     in_progress: 'bg-primary/15 text-primary',
-    completed: 'bg-green-100 text-green-700',
+    completed: 'bg-muted text-muted-foreground',
     cancelled: 'bg-destructive/15 text-destructive',
   };
 
   const statusLabels: Record<string, string> = {
-    waiting: 'অপেক্ষায়',
-    in_progress: 'চলছে',
-    completed: 'সম্পন্ন',
-    cancelled: 'বাতিল',
+    waiting: 'Confirmed',
+    in_progress: 'In Progress',
+    completed: 'Completed',
+    cancelled: 'Cancelled',
   };
 
-  // Show only first 50 in list, rest collapsed
   const visibleBookings = allBookings.filter(b => b.status !== 'cancelled');
 
   return (
@@ -129,7 +127,6 @@ const QueueDetailPage = () => {
               <p className="text-xs text-muted-foreground">{seller?.unique_code}</p>
             </div>
           </div>
-          {/* Customer alarm threshold settings */}
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="ghost" size="icon">
@@ -138,19 +135,13 @@ const QueueDetailPage = () => {
             </PopoverTrigger>
             <PopoverContent className="w-64" align="end">
               <div className="space-y-3">
-                <p className="font-display font-semibold text-sm text-foreground">অ্যালার্ম সেটিংস</p>
+                <p className="font-display font-semibold text-sm text-foreground">Alarm Settings</p>
                 <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">কতজন আগে অ্যালার্ম বাজবে</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={20}
-                    value={effectiveThreshold}
-                    onChange={e => saveCustomerThreshold(parseInt(e.target.value) || 2)}
-                    className="h-9"
-                  />
+                  <Label className="text-xs text-muted-foreground">Alert when this many people ahead</Label>
+                  <Input type="number" min={1} max={20} value={effectiveThreshold}
+                    onChange={e => saveCustomerThreshold(parseInt(e.target.value) || 2)} className="h-9" />
                   <p className="text-[10px] text-muted-foreground">
-                    সেলার ডিফল্ট: {sellerThreshold} জন
+                    Seller default: {sellerThreshold}
                   </p>
                 </div>
               </div>
@@ -160,7 +151,6 @@ const QueueDetailPage = () => {
       </header>
 
       <main className="max-w-3xl mx-auto px-6 py-8 space-y-6">
-        {/* Seller message */}
         {seller?.customer_message && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
             className="glass-elevated rounded-2xl p-4 border-l-4 border-primary">
@@ -168,81 +158,66 @@ const QueueDetailPage = () => {
           </motion.div>
         )}
 
-        {/* Queue Alarm */}
         {myPosition >= 0 && (
-          <QueueAlarm
-            peopleAhead={myPosition}
-            threshold={effectiveThreshold}
-            alarmMessage={alarmMessage}
-            bookingStatus={booking?.status}
-          />
+          <QueueAlarm peopleAhead={myPosition} threshold={effectiveThreshold}
+            alarmMessage={alarmMessage} bookingStatus={booking?.status} />
         )}
 
-        {/* My Token */}
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}
           className="glass-elevated rounded-2xl p-6 text-center">
-          <p className="text-sm text-muted-foreground mb-1">আপনার টোকেন</p>
+          <p className="text-sm text-muted-foreground mb-1">Your Token</p>
           <p className="text-5xl font-display font-bold text-primary">#{booking?.token_number}</p>
           <span className={`inline-block mt-3 px-4 py-1.5 rounded-full text-sm font-semibold ${statusColors[booking?.status] || ''}`}>
             {statusLabels[booking?.status] || booking?.status}
           </span>
           {myPosition >= 0 && (
             <p className="mt-3 text-sm text-muted-foreground">
-              আপনার আগে <span className="font-bold text-foreground">{myPosition}</span> জন আছে
+              <span className="font-bold text-foreground">{myPosition}</span> people ahead of you
             </p>
           )}
         </motion.div>
 
-        {/* Rating for completed bookings */}
         {booking?.status === 'completed' && !hasRated && seller && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-            <RatingDialog
-              bookingId={booking.id}
-              sellerId={seller.user_id}
-              sellerName={seller.business_name}
-              onRated={() => { setHasRated(true); loadData(); }}
-            />
+            <RatingDialog bookingId={booking.id} sellerId={seller.user_id}
+              sellerName={seller.business_name} onRated={() => { setHasRated(true); loadData(); }} />
           </motion.div>
         )}
 
         {booking?.status === 'completed' && hasRated && (
           <div className="glass-card rounded-xl p-3 text-center text-sm text-muted-foreground">
-            ⭐ আপনি ইতোমধ্যে রেটিং দিয়েছেন
+            ⭐ You have already rated this service
           </div>
         )}
 
-        {/* Stats */}
         <div className="grid grid-cols-3 gap-3">
           <div className="glass-card rounded-xl p-4 text-center">
             <Clock className="w-5 h-5 mx-auto mb-1 text-primary" />
             <p className="text-xl font-display font-bold text-foreground">{currentSerial || '-'}</p>
-            <p className="text-[10px] text-muted-foreground">বর্তমান সিরিয়াল</p>
+            <p className="text-[10px] text-muted-foreground">Current Serial</p>
           </div>
           <div className="glass-card rounded-xl p-4 text-center">
             <Users className="w-5 h-5 mx-auto mb-1 text-accent" />
             <p className="text-xl font-display font-bold text-foreground">{waiting.length}</p>
-            <p className="text-[10px] text-muted-foreground">অপেক্ষায়</p>
+            <p className="text-[10px] text-muted-foreground">Waiting</p>
           </div>
           <div className="glass-card rounded-xl p-4 text-center">
             <CheckCircle className="w-5 h-5 mx-auto mb-1 text-green-500" />
             <p className="text-xl font-display font-bold text-foreground">{completed.length}</p>
-            <p className="text-[10px] text-muted-foreground">সম্পন্ন</p>
+            <p className="text-[10px] text-muted-foreground">Completed</p>
           </div>
         </div>
 
-        {/* All tokens list - virtualized for performance */}
         <section>
           <h2 className="font-display font-bold text-foreground mb-3 flex items-center gap-2">
-            <Hash className="w-5 h-5 text-primary" /> সকল টোকেন ({visibleBookings.length})
+            <Hash className="w-5 h-5 text-primary" /> All Tokens ({visibleBookings.length})
           </h2>
           <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-            {visibleBookings.map((b, i) => {
+            {visibleBookings.map((b) => {
               const isMe = b.id === booking?.id;
               return (
-                <div
-                  key={b.id}
-                  className={`glass-card rounded-xl p-3 flex items-center justify-between ${isMe ? 'ring-2 ring-primary' : ''}`}
-                >
+                <div key={b.id}
+                  className={`glass-card rounded-xl p-3 flex items-center justify-between ${isMe ? 'ring-2 ring-primary' : ''}`}>
                   <div className="flex items-center gap-3">
                     <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${isMe ? 'gradient-primary' : 'bg-muted'}`}>
                       <span className={`text-sm font-bold ${isMe ? 'text-primary-foreground' : 'text-muted-foreground'}`}>
@@ -252,7 +227,7 @@ const QueueDetailPage = () => {
                     <div>
                       <p className="text-sm font-medium text-foreground">
                         {customerNames[b.customer_id] || 'Customer'}
-                        {isMe && <span className="text-primary text-xs ml-1">(আপনি)</span>}
+                        {isMe && <span className="text-primary text-xs ml-1">(You)</span>}
                       </p>
                       <p className="text-[10px] text-muted-foreground">
                         {new Date(b.created_at).toLocaleTimeString()}
